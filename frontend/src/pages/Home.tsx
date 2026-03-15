@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore, socket } from '../store/gameStore';
 
@@ -9,22 +9,65 @@ export default function Home() {
   const navigate = useNavigate();
   const setMe = useGameStore((state) => state.setMe);
 
-  const handleCreateRoom = () => {
+  const [status, setStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
+
+  useEffect(() => {
+    const onConnect = () => setStatus('connected');
+    const onDisconnect = () => setStatus('error');
+    const onConnectError = () => setStatus('error');
+
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    socket.on('connect_error', onConnectError);
+
+    return () => {
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+      socket.off('connect_error', onConnectError);
+    };
+  }, []);
+
+  const handleCreateRoom = async () => {
+    if (status !== 'connected') { setError('Server not connected'); return; }
     if (!name.trim()) { setError('Enter a nickname first'); return; }
-    setMe(name, socket.id as string);
-    socket.emit('create_room', { playerName: name });
-    socket.once('room_created', (data: { roomId: string }) => {
-      navigate(`/room/${data.roomId}`);
+    
+    setError('');
+    setMe(name, socket.id!);
+    
+    return new Promise<void>((resolve) => {
+      socket.once('room_created', (data: { roomId: string }) => {
+        navigate(`/room/${data.roomId}`);
+        resolve();
+      });
+      socket.once('error_message', (msg) => {
+        setError(msg);
+        resolve();
+      });
+      socket.emit('create_room', { playerName: name });
     });
   };
 
-  const handleJoinRoom = (e: React.FormEvent) => {
+  const handleJoinRoom = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (status !== 'connected') { setError('Server not connected'); return; }
     if (!name.trim() || !roomId.trim()) { setError('Enter your name and room code'); return; }
-    setMe(name, socket.id as string);
-    socket.emit('join_room', { roomId, playerName: name });
-    navigate(`/room/${roomId.toUpperCase()}`);
-  };;
+    
+    setError('');
+    const joinId = roomId.trim().toUpperCase();
+    setMe(name, socket.id!);
+    
+    return new Promise<void>((resolve) => {
+      socket.once('room_state_update', () => {
+        navigate(`/room/${joinId}`);
+        resolve();
+      });
+      socket.once('error_message', (msg) => {
+        setError(msg);
+        resolve();
+      });
+      socket.emit('join_room', { roomId: joinId, playerName: name });
+    });
+  };
 
   return (
     <>
@@ -228,7 +271,9 @@ export default function Home() {
           <div className="logo">Skrib<span>bl</span></div>
           <div className="tagline">Draw. Guess. Repeat.</div>
 
+          {status === 'error' && <div className="error-msg">❌ Server disconnected. Check VITE_BACKEND_URL.</div>}
           {error && <div className="error-msg">{error}</div>}
+          {status === 'connecting' && <div className="error-msg" style={{background: '#333'}}>⏳ Connecting to server...</div>}
 
           {/* Name */}
           <div className="input-group">
@@ -244,8 +289,8 @@ export default function Home() {
           </div>
 
           {/* Create */}
-          <button className="btn-primary" onClick={handleCreateRoom}>
-            Start a New Room ✏️
+          <button className="btn-primary" onClick={handleCreateRoom} disabled={status !== 'connected'}>
+            {status === 'connected' ? 'Start a New Room ✏️' : 'Waiting for server...'}
           </button>
 
           {/* Join */}
@@ -265,7 +310,9 @@ export default function Home() {
                 placeholder="ROOM CODE"
                 maxLength={4}
               />
-              <button type="submit" className="btn-join">Jump In →</button>
+              <button type="submit" className="btn-join" disabled={status !== 'connected'}>
+                {status === 'connected' ? 'Jump In →' : 'Waiting...'}
+              </button>
             </div>
           </form>
         </div>

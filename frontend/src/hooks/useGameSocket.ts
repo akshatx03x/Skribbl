@@ -1,17 +1,18 @@
 import { useEffect } from 'react';
-import { useGameStore, socket, type Player } from '../store/gameStore';
+import { useGameStore, socket } from '../store/gameStore';
 
 export function useGameSocket() {
-  const { setMyWord, setWordChoices, setWordHint, addMessage, room } = useGameStore();
+  const { setMyWord, setWordChoices, setWordHint, addMessage, setRoom, room } = useGameStore();
 
   useEffect(() => {
-    // Game Loop Events
+    // ── Game lifecycle ──────────────────────────────────────────────────────
+
     socket.on('game_started', () => {
       addMessage({
         playerId: 'system',
         playerName: 'System',
         message: 'The game has started!',
-        isSystem: true
+        isSystem: true,
       });
     });
 
@@ -20,19 +21,24 @@ export function useGameSocket() {
         playerId: 'system',
         playerName: 'System',
         message: `Round ${data.round} started!`,
-        isSystem: true
+        isSystem: true,
       });
     });
 
+    // FIX: read the drawer name from the room_state_update that follows this
+    // event rather than from a potentially stale `room` closure.
+    // We just announce a generic message here; the PlayerList shows who's drawing.
     socket.on('turn_start', (data: { drawerId: string }) => {
-      const drawer = room?.players.find((p: Player) => p.id === data.drawerId);
-      const name = drawer?.name || 'Someone';
+      // Pull the latest room snapshot from the store at call-time, not closure-time
+      const latestRoom = useGameStore.getState().room;
+      const drawer = latestRoom?.players.find(p => p.id === data.drawerId);
+      const name = drawer?.name ?? 'Someone';
 
       addMessage({
         playerId: 'system',
         playerName: 'System',
         message: `${name} is drawing now.`,
-        isSystem: true
+        isSystem: true,
       });
 
       setWordHint('');
@@ -53,25 +59,38 @@ export function useGameSocket() {
       setWordChoices([]);
     });
 
+    // ── Timer ───────────────────────────────────────────────────────────────
+    // Keep the store's timeLeft in sync so the topbar timer stays accurate.
+    socket.on('timer_update', (timeLeft: number) => {
+      const latestRoom = useGameStore.getState().room;
+      if (latestRoom) {
+        setRoom({ ...latestRoom, timeLeft });
+      }
+    });
+
+    // ── Guesses & chat ──────────────────────────────────────────────────────
+
     socket.on('correct_guess', (data: { playerId: string; playerName: string }) => {
       addMessage({
         playerId: data.playerId,
         playerName: data.playerName,
         message: 'Guessed the word!',
-        isCorrectGuess: true
+        isCorrectGuess: true,
       });
     });
 
-    socket.on('chat_message', (msg: any) => {
+    socket.on('chat_message', (msg: { playerId: string; playerName: string; message: string }) => {
       addMessage(msg);
     });
+
+    // ── Turn / round / game end ─────────────────────────────────────────────
 
     socket.on('turn_end', (data: { word: string }) => {
       addMessage({
         playerId: 'system',
         playerName: 'System',
-        message: `Turn over! The word was ${data.word}`,
-        isSystem: true
+        message: `Turn over! The word was "${data.word}".`,
+        isSystem: true,
       });
 
       setWordHint('');
@@ -83,17 +102,19 @@ export function useGameSocket() {
         playerId: 'system',
         playerName: 'System',
         message: `Round ${data.round} over!`,
-        isSystem: true
+        isSystem: true,
       });
     });
 
-    // FIXED HERE (removed unused data)
-    socket.on('game_over', () => {
+    socket.on('game_over', (data: { leaderboard: { id: string; name: string; score: number }[] }) => {
+      const top = data.leaderboard[0];
       addMessage({
         playerId: 'system',
         playerName: 'System',
-        message: `Game Over! Check the leaderboard.`,
-        isSystem: true
+        message: top
+          ? `Game Over! 🏆 ${top.name} wins with ${top.score} pts!`
+          : 'Game Over!',
+        isSystem: true,
       });
     });
 
@@ -104,11 +125,13 @@ export function useGameSocket() {
       socket.off('word_choices');
       socket.off('word_hint');
       socket.off('your_word');
+      socket.off('timer_update');
       socket.off('correct_guess');
       socket.off('chat_message');
       socket.off('turn_end');
       socket.off('round_end');
       socket.off('game_over');
     };
-  }, [addMessage, room?.players, setMyWord, setWordChoices, setWordHint]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // empty deps — we use getState() to avoid stale closures
 }

@@ -11,13 +11,13 @@ export class Room {
   hostId: string;
   players: Map<string, Player> = new Map();
   settings: RoomSettings;
-  
+
   // Game State
   isGameStarted: boolean = false;
   currentRound: number = 0;
-  
+
   // Turn state
-  turnQueue: string[] = []; // Socket IDs of players who haven't drawn this round
+  turnQueue: string[] = [];
   currentDrawerId: string | null = null;
   currentWord: string = '';
   timeLeft: number = 0;
@@ -28,8 +28,8 @@ export class Room {
     this.hostId = hostId;
     this.settings = {
       maxPlayers: settings?.maxPlayers || 8,
-      rounds: settings?.rounds || 3,
-      drawTime: settings?.drawTime || 80,
+      rounds:     settings?.rounds    || 3,
+      drawTime:   settings?.drawTime  || 30, // ← changed from 80 → 30
     };
   }
 
@@ -44,7 +44,7 @@ export class Room {
   removePlayer(playerId: string) {
     this.players.delete(playerId);
     this.turnQueue = this.turnQueue.filter(id => id !== playerId);
-    
+
     if (playerId === this.hostId && this.players.size > 0) {
       const nextPlayer = Array.from(this.players.values())[0];
       if (nextPlayer) {
@@ -56,22 +56,22 @@ export class Room {
   getPlayers() {
     return Array.from(this.players.values());
   }
-  
+
   getSafeguardedRoomState() {
     return {
-      id: this.id,
-      hostId: this.hostId,
-      settings: this.settings,
-      players: this.getPlayers().map(p => ({
-        id: p.id,
-        name: p.name,
-        score: p.score,
-        hasGuessedCorrectly: p.hasGuessedCorrectly
+      id:              this.id,
+      hostId:          this.hostId,
+      settings:        this.settings,
+      players:         this.getPlayers().map(p => ({
+        id:                  p.id,
+        name:                p.name,
+        score:               p.score,
+        hasGuessedCorrectly: p.hasGuessedCorrectly,
       })),
-      isGameStarted: this.isGameStarted,
-      currentRound: this.currentRound,
+      isGameStarted:   this.isGameStarted,
+      currentRound:    this.currentRound,
       currentDrawerId: this.currentDrawerId,
-      timeLeft: this.timeLeft
+      timeLeft:        this.timeLeft,
     };
   }
 }

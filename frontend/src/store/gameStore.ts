@@ -56,17 +56,18 @@ interface GameStore {
 }
 
 export const useGameStore = create<GameStore>((set) => ({
-  me: null,
-  room: null,
-  messages: [],
-  wordHint: '',
-  myWord: '',
+  me:          null,
+  room:        null,
+  messages:    [],
+  wordHint:    '',
+  myWord:      '',
   wordChoices: [],
-  setMe: (name, id) => set({ me: { name, id } }),
-  setRoom: (room) => set({ room }),
-  addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
-  setWordHint: (hint) => set({ wordHint: hint }),
-  setMyWord: (word) => set({ myWord: word }),
-  setWordChoices: (choices) => set({ wordChoices: choices }),
-  clearMessages: () => set({ messages: [] }),
+
+  setMe:          (name, id) => set({ me: { name, id } }),
+  setRoom:        (room)     => set({ room }),
+  addMessage:     (msg)      => set((state) => ({ messages: [...state.messages, msg] })),
+  setWordHint:    (hint)     => set({ wordHint: hint }),
+  setMyWord:      (word)     => set({ myWord: word }),
+  setWordChoices: (choices)  => set({ wordChoices: choices }),
+  clearMessages:  ()         => set({ messages: [] }),
 }));
