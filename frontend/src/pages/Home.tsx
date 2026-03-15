@@ -78,6 +78,7 @@ export default function Home() {
 
         .home-root {
           min-height: 100vh;
+          min-height: 100dvh;
           background: #0a0a0f;
           display: flex;
           align-items: center;
@@ -142,8 +143,6 @@ export default function Home() {
           text-transform: uppercase;
         }
 
-
-
         /* Input */
         .input-group { margin-bottom: 16px; }
         .input-label {
@@ -166,6 +165,8 @@ export default function Home() {
           font-size: 0.95rem;
           outline: none;
           transition: border-color 0.2s, box-shadow 0.2s;
+          /* Prevent iOS zoom on focus */
+          font-size: max(16px, 0.95rem);
         }
         .input-field::placeholder { color: #ffffff25; }
         .input-field:focus {
@@ -189,6 +190,9 @@ export default function Home() {
           transition: opacity 0.18s, transform 0.15s, box-shadow 0.2s;
           box-shadow: 0 6px 28px var(--accent-glow);
           margin-bottom: 20px;
+          /* Better tap target */
+          min-height: 48px;
+          touch-action: manipulation;
         }
         .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
         .btn-primary:active { transform: scale(0.97); }
@@ -213,13 +217,14 @@ export default function Home() {
           border-radius: 12px;
           color: #fff;
           font-family: 'Syne', sans-serif;
-          font-size: 1rem;
+          font-size: max(16px, 1rem);
           font-weight: 700;
           letter-spacing: 0.22em;
           text-transform: uppercase;
           text-align: center;
           outline: none;
           transition: border-color 0.2s, box-shadow 0.2s;
+          min-height: 48px;
         }
         .join-code::placeholder { color: #ffffff20; letter-spacing: 0.12em; font-weight: 400; }
         .join-code:focus {
@@ -238,6 +243,8 @@ export default function Home() {
           cursor: pointer;
           transition: background 0.18s, transform 0.15s;
           white-space: nowrap;
+          min-height: 48px;
+          touch-action: manipulation;
         }
         .btn-join:hover { background: #6056f5; transform: translateY(-1px); }
         .btn-join:active { transform: scale(0.97); }
@@ -254,9 +261,28 @@ export default function Home() {
           text-align: center;
         }
 
+        /* ── Responsive: small phones ─────────────────────────────── */
         @media (max-width: 400px) {
-          .card { padding: 28px 20px 24px; }
-          .logo { font-size: 2rem; }
+          .home-root { padding: 16px 12px; }
+          .card { padding: 24px 18px 20px; border-radius: 18px; }
+          .logo { font-size: 1.9rem; }
+          .tagline { margin-bottom: 24px; }
+          /* Stack join row on very small screens */
+          .join-row { flex-direction: column; }
+          .btn-join { width: 100%; }
+          .blob { width: 320px; height: 320px; filter: blur(80px); }
+        }
+
+        /* ── Responsive: mid-size phones ─────────────────────────── */
+        @media (min-width: 401px) and (max-width: 480px) {
+          .home-root { padding: 20px 16px; }
+          .card { padding: 28px 22px 24px; }
+        }
+
+        /* ── Disable hover transforms on touch devices ────────────── */
+        @media (hover: none) {
+          .btn-primary:hover { opacity: 1; transform: none; }
+          .btn-join:hover { background: #4f46e5; transform: none; }
         }
       `}</style>
 
@@ -285,6 +311,9 @@ export default function Home() {
               onChange={(e) => setName(e.target.value)}
               placeholder="What do they call you?"
               maxLength={15}
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
             />
           </div>
 
@@ -309,6 +338,9 @@ export default function Home() {
                 onChange={(e) => setRoomId(e.target.value.toUpperCase())}
                 placeholder="ROOM CODE"
                 maxLength={4}
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
               />
               <button type="submit" className="btn-join" disabled={status !== 'connected'}>
                 {status === 'connected' ? 'Jump In →' : 'Waiting...'}
