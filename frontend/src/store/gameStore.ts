@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { create } from 'zustand';
+import type { LeaderboardEntry } from '../types/Leaderboard';
 
 const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 
@@ -29,6 +30,7 @@ export interface RoomState {
   currentRound: number;
   currentDrawerId: string | null;
   timeLeft: number;
+  leaderboard?: LeaderboardEntry[];
 }
 
 export interface ChatMessage {
@@ -52,7 +54,10 @@ interface GameStore {
   setWordHint: (hint: string) => void;
   setMyWord: (word: string) => void;
   setWordChoices: (choices: string[]) => void;
+  setLeaderboard: (leaderboard: LeaderboardEntry[]) => void;
   clearMessages: () => void;
+  // Resets everything game-related — call this when leaving a room
+  resetGame: () => void;
 }
 
 export const useGameStore = create<GameStore>((set) => ({
@@ -69,5 +74,18 @@ export const useGameStore = create<GameStore>((set) => ({
   setWordHint:    (hint)     => set({ wordHint: hint }),
   setMyWord:      (word)     => set({ myWord: word }),
   setWordChoices: (choices)  => set({ wordChoices: choices }),
+  setLeaderboard: (leaderboard) => set((state) => state.room ? ({
+    ...state,
+    room: { ...state.room, leaderboard }
+  }) : state),
   clearMessages:  ()         => set({ messages: [] }),
+
+  // Wipes all game state so the next room starts completely fresh
+  resetGame: () => set({
+    room:        null,
+    messages:    [],
+    wordHint:    '',
+    myWord:      '',
+    wordChoices: [],
+  }),
 }));

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGameStore, socket } from '../store/gameStore';
 import { Send, CheckCircle2 } from 'lucide-react';
-import clsx from 'clsx';
 
 export default function Chat({ inLobby = false }: { inLobby?: boolean }) {
   const [input, setInput] = useState('');
@@ -12,110 +11,226 @@ export default function Chat({ inLobby = false }: { inLobby?: boolean }) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // The only player who cannot type is one who already guessed correctly
-  // (they'd reveal the word to others). The drawer CAN type — their messages
-  // go to chat via Game.handleMessage on the server.
   const myPlayer = room?.players.find(p => p.id === me?.id);
   const alreadyGuessed = myPlayer?.hasGuessedCorrectly ?? false;
-  const isInputDisabled = alreadyGuessed;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isInputDisabled) return;
+    if (!input.trim() || alreadyGuessed) return;
     socket.emit('send_guess', input.trim());
     setInput('');
   };
 
   return (
-    <div className="flex flex-col h-full bg-neutral-900">
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      minHeight: 0,
+      backgroundColor: '#171717',
+      overflow: 'hidden',
+    }}>
+      {/* Header */}
       {!inLobby && (
-        <div className="p-3 bg-neutral-800 border-b border-white/5 shadow-sm z-10">
-          <h3 className="font-bold text-sm text-neutral-300 uppercase tracking-widest text-center">
+        <div style={{
+          padding: '12px 16px',
+          backgroundColor: '#262626',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+          flexShrink: 0,
+        }}>
+          <h3 style={{
+            fontWeight: 700,
+            fontSize: '0.7rem',
+            color: '#a3a3a3',
+            textTransform: 'uppercase',
+            letterSpacing: '0.12em',
+            textAlign: 'center',
+            margin: 0,
+          }}>
             Chat &amp; Guesses
           </h3>
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-2 font-medium text-sm">
+      {/* Messages area */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        padding: '12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        minHeight: 0,
+      }}>
+        {messages.length === 0 && (
+          <div style={{
+            textAlign: 'center',
+            color: 'rgba(255,255,255,0.15)',
+            fontSize: '0.78rem',
+            marginTop: '16px',
+          }}>
+            No messages yet…
+          </div>
+        )}
+
         {messages.map((msg, i) => {
           const isMine = msg.playerId === me?.id;
 
+          /* System message */
           if (msg.isSystem) {
             return (
-              <div
-                key={i}
-                className="text-center text-xs p-1.5 my-2 rounded-lg bg-white/5 text-white/50 border border-white/10 font-bold mx-4 shadow-sm"
-              >
+              <div key={i} style={{
+                textAlign: 'center',
+                fontSize: '0.7rem',
+                padding: '5px 10px',
+                margin: '4px 8px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(255,255,255,0.04)',
+                color: 'rgba(255,255,255,0.4)',
+                border: '1px solid rgba(255,255,255,0.07)',
+                fontWeight: 600,
+                wordBreak: 'break-word',
+              }}>
                 {msg.message}
               </div>
             );
           }
 
+          /* Correct guess banner */
           if (msg.isCorrectGuess) {
             return (
-              <div
-                key={i}
-                className="flex items-center gap-2 p-2 rounded-lg bg-green-500/20 text-green-400 border border-green-500/30 font-bold max-w-[90%] w-fit shadow-md"
-              >
-                <CheckCircle2 size={16} className="shrink-0" />
+              <div key={i} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 12px',
+                borderRadius: '10px',
+                backgroundColor: 'rgba(34,197,94,0.15)',
+                color: '#4ade80',
+                border: '1px solid rgba(34,197,94,0.25)',
+                fontWeight: 700,
+                fontSize: '0.8rem',
+                wordBreak: 'break-word',
+              }}>
+                <CheckCircle2 size={15} style={{ flexShrink: 0 }} />
                 <span>{msg.playerName} guessed the word!</span>
               </div>
             );
           }
 
+          /* Regular chat bubble */
           return (
-            <div
-              key={i}
-              className={clsx(
-                'flex flex-col max-w-[90%]',
-                isMine ? 'ml-auto items-end' : 'mr-auto items-start'
-              )}
-            >
+            <div key={i} style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: isMine ? 'flex-end' : 'flex-start',
+              maxWidth: '100%',
+            }}>
               {!isMine && (
-                <span className="text-xs text-white/40 mb-1 ml-1">{msg.playerName}</span>
+                <span style={{
+                  fontSize: '0.65rem',
+                  color: 'rgba(255,255,255,0.35)',
+                  marginBottom: '3px',
+                  marginLeft: '4px',
+                  fontWeight: 500,
+                }}>
+                  {msg.playerName}
+                </span>
               )}
-              <div
-                className={clsx(
-                  'px-3 py-2 rounded-2xl whitespace-pre-wrap shadow-sm text-sm',
-                  isMine
-                    ? 'bg-indigo-600 text-white rounded-tr-sm'
-                    : 'bg-neutral-800 text-neutral-200 border border-white/5 rounded-tl-sm'
-                )}
-              >
+              <div style={{
+                maxWidth: '85%',
+                padding: '8px 12px',
+                borderRadius: isMine ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
+                backgroundColor: isMine ? '#4f46e5' : '#2a2a2a',
+                color: isMine ? '#fff' : '#e5e5e5',
+                fontSize: '0.82rem',
+                lineHeight: '1.45',
+                fontWeight: 500,
+                border: isMine ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                wordBreak: 'break-word',
+                overflowWrap: 'anywhere',
+                whiteSpace: 'pre-wrap',
+              }}>
                 {msg.message}
               </div>
             </div>
           );
         })}
+
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSubmit} className="p-3 bg-neutral-800 border-t border-white/5 shrink-0">
+      {/* Input area */}
+      <div style={{
+        padding: '10px',
+        backgroundColor: '#262626',
+        borderTop: '1px solid rgba(255,255,255,0.05)',
+        flexShrink: 0,
+      }}>
         {alreadyGuessed ? (
-          <div className="w-full py-3 text-center text-sm text-green-400 font-bold bg-green-500/10 rounded-xl border border-green-500/20">
+          <div style={{
+            width: '100%',
+            padding: '12px',
+            textAlign: 'center',
+            fontSize: '0.82rem',
+            color: '#4ade80',
+            fontWeight: 700,
+            backgroundColor: 'rgba(34,197,94,0.08)',
+            borderRadius: '12px',
+            border: '1px solid rgba(34,197,94,0.2)',
+          }}>
             ✓ You guessed correctly!
           </div>
         ) : (
-          <div className="relative">
+          <form
+            onSubmit={handleSubmit}
+            style={{ display: 'flex', gap: '8px', alignItems: 'center' }}
+          >
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Type your guess here..."
-              className="w-full bg-neutral-900 border border-white/10 rounded-xl py-3 pl-4 pr-12 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all shadow-inner"
+              placeholder="Type your guess…"
               maxLength={100}
               autoComplete="off"
+              style={{
+                flex: 1,
+                minWidth: 0,
+                backgroundColor: '#171717',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '10px',
+                padding: '10px 14px',
+                fontSize: '0.82rem',
+                color: '#fff',
+                outline: 'none',
+              }}
+              onFocus={e => (e.currentTarget.style.borderColor = 'rgba(99,102,241,0.6)')}
+              onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
             />
             <button
               type="submit"
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-indigo-500 hover:bg-indigo-400 text-white rounded-lg transition-colors shadow-md disabled:opacity-50"
               disabled={!input.trim()}
+              style={{
+                flexShrink: 0,
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                border: 'none',
+                backgroundColor: input.trim() ? '#4f46e5' : '#2a2a2a',
+                color: input.trim() ? '#fff' : 'rgba(255,255,255,0.2)',
+                cursor: input.trim() ? 'pointer' : 'not-allowed',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'background-color 0.15s',
+              }}
             >
-              <Send size={16} />
+              <Send size={15} />
             </button>
-          </div>
+          </form>
         )}
-      </form>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useGameStore, socket } from '../store/gameStore';
+import type { LeaderboardEntry } from '../types/Leaderboard';
 
 export function useGameSocket() {
   const { setMyWord, setWordChoices, setWordHint, addMessage, setRoom, room } = useGameStore();
@@ -106,7 +107,10 @@ export function useGameSocket() {
       });
     });
 
-    socket.on('game_over', (data: { leaderboard: { id: string; name: string; score: number }[] }) => {
+    socket.on('game_over', (data: { leaderboard: LeaderboardEntry[] }) => {
+      const { setLeaderboard } = useGameStore.getState();
+      setLeaderboard(data.leaderboard);
+      
       const top = data.leaderboard[0];
       addMessage({
         playerId: 'system',

@@ -53,6 +53,16 @@ export function handleSockets(io: Server) {
         return;
       }
 
+      // ── Re-join guard ──────────────────────────────────────────
+      // If this socket is already in the room (e.g. component re-mounted
+      // after navigation without a full page reload), don't add a duplicate
+      // player — just re-emit the current room state so the client syncs.
+      if (room.players.has(socket.id)) {
+        socket.join(roomId); // ensure socket is still in the room channel
+        socket.emit('room_state_update', room.getSafeguardedRoomState());
+        return;
+      }
+
       try {
         const player = new Player(socket.id, data.playerName);
         room.addPlayer(player);
@@ -93,14 +103,10 @@ export function handleSockets(io: Server) {
     });
 
     // ── SEND GUESS / CHAT ─────────────────────────────────────────
-    // ALL player messages come through here — Game.handleMessage decides
-    // whether it's a guess attempt or a plain chat message, and also
-    // handles the drawer (who can always chat) and the lobby phase.
     socket.on('send_guess', (message: string) => {
       const room = getRoomForSocket(socket.id);
       if (!room) return;
 
-      // Lobby chat — game not started yet
       if (!room.isGameStarted) {
         const player = room.players.get(socket.id);
         if (!player) return;
@@ -148,21 +154,17 @@ export function handleSockets(io: Server) {
       const room = getRoomForSocket(socket.id);
       if (!room) return;
 
+      const wasDrawer = room.currentDrawerId === socket.id;
       room.removePlayer(socket.id);
 
       if (room.players.size === 0) {
-        // Clean up empty room
         const game = games.get(room.id);
-        if (game) {
-          game.destroy();
-          games.delete(room.id);
-        }
+        if (game) { game.destroy(); games.delete(room.id); }
         rooms.delete(room.id);
         return;
       }
 
-      // If the drawer disconnected mid-turn, end the turn immediately
-      if (room.currentDrawerId === socket.id) {
+      if (wasDrawer && room.isGameStarted) {
         const game = games.get(room.id);
         if (game) game.endTurn();
       }
@@ -172,7 +174,6 @@ export function handleSockets(io: Server) {
   });
 }
 
-// ── Helper ────────────────────────────────────────────────────────────────────
 function getRoomForSocket(socketId: string): Room | null {
   for (const room of rooms.values()) {
     if (room.players.has(socketId)) return room;

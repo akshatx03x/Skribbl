@@ -1,11 +1,9 @@
 import { Server } from 'socket.io';
 import { Room } from './Room';
-import { Player } from './Player';
 import { getRandomWords } from '../data/words';
 
-// Points awarded per turn
-const POINTS_FOR_CORRECT_GUESS = 10;   // guesser earns this
-const POINTS_FOR_DRAWER_PER_GUESSER = 5; // drawer earns this per correct guesser
+const POINTS_FOR_CORRECT_GUESS     = 10;
+const POINTS_FOR_DRAWER_PER_GUESSER = 5;
 
 export class Game {
   io: Server;
@@ -31,14 +29,10 @@ export class Game {
       return;
     }
 
-    // Reset per-round guess flags
     this.room.getPlayers().forEach(p => p.resetRound());
-
-    // Every player draws once per round
     this.room.turnQueue = this.room.getPlayers().map(p => p.id);
 
     this.io.to(this.room.id).emit('round_start', { round: this.room.currentRound });
-
     this.startTurn();
   }
 
@@ -48,7 +42,7 @@ export class Game {
       return;
     }
 
-    // Reset per-turn guess flags so the scoreboard clears between turns
+    // Reset per-turn guess flags so hasGuessedCorrectly clears between turns
     this.room.getPlayers().forEach(p => p.resetRound());
 
     this.room.currentDrawerId = this.room.turnQueue.shift() || null;
@@ -58,7 +52,6 @@ export class Game {
       drawerId: this.room.currentDrawerId,
     });
 
-    // Broadcast fresh room state so everyone sees the new drawer & cleared scores
     this.io.to(this.room.id).emit(
       'room_state_update',
       this.room.getSafeguardedRoomState()
@@ -74,43 +67,32 @@ export class Game {
     if (this.room.currentDrawerId !== playerId) return;
 
     this.room.currentWord = word;
-    this.room.timeLeft = this.room.settings.drawTime; // 30 s default
+    this.room.timeLeft = this.room.settings.drawTime;
 
-    // Blanked hint for guessers
     const hint = word.replace(/[a-zA-Z]/g, '_');
     this.io.to(this.room.id).emit('word_hint', hint);
-
-    // Actual word only to drawer
     this.io.to(playerId).emit('your_word', word);
 
     this.startTimer();
   }
 
   startTimer() {
-    if (this.room.timerInterval) {
-      clearInterval(this.room.timerInterval);
-    }
+    if (this.room.timerInterval) clearInterval(this.room.timerInterval);
 
     this.room.timerInterval = setInterval(() => {
       this.room.timeLeft--;
       this.io.to(this.room.id).emit('timer_update', this.room.timeLeft);
 
       if (this.room.timeLeft <= 0) {
-        // Time ran out — split a single match (10 pts) equally among all players
         this.awardEqualSplit();
         this.endTurn();
       }
     }, 1000);
   }
 
-  /**
-   * When nobody guesses in time, divide 10 points equally among all players.
-   * Fractional points are floored; any remainder goes to nobody (keeps it simple).
-   */
   private awardEqualSplit() {
     const players = this.room.getPlayers();
     if (players.length === 0) return;
-
     const share = Math.floor(POINTS_FOR_CORRECT_GUESS / players.length);
     if (share > 0) {
       players.forEach(p => (p.score += share));
@@ -121,33 +103,13 @@ export class Game {
     }
   }
 
-  /**
-   * Handle a message from any player.
-   *
-   * Rules:
-   *  - Drawer's messages always go to chat (they cannot guess their own word).
-   *  - Non-drawers: if a word has been chosen, treat as a guess attempt;
-   *    correct → award points, incorrect → broadcast as chat.
-   *  - If no word is chosen yet (choosing phase), treat as lobby-style chat.
-   */
   handleMessage(playerId: string, message: string) {
     const player = this.room.players.get(playerId);
     if (!player) return;
 
     const isDrawer = playerId === this.room.currentDrawerId;
 
-    // Drawer always chats (never guesses)
-    if (isDrawer) {
-      this.io.to(this.room.id).emit('chat_message', {
-        playerId: player.id,
-        playerName: player.name,
-        message,
-      });
-      return;
-    }
-
-    // No word chosen yet → pure chat
-    if (!this.room.currentWord) {
+    if (isDrawer || !this.room.currentWord) {
       this.io.to(this.room.id).emit('chat_message', {
         playerId: player.id,
         playerName: player.name,
@@ -171,15 +133,10 @@ export class Game {
 
     if (correct) {
       player.hasGuessedCorrectly = true;
-
-      // Flat 10 pts for the guesser
       player.score += POINTS_FOR_CORRECT_GUESS;
 
-      // Drawer gets 5 pts per successful guesser
       const drawer = this.room.players.get(this.room.currentDrawerId!);
-      if (drawer) {
-        drawer.score += POINTS_FOR_DRAWER_PER_GUESSER;
-      }
+      if (drawer) drawer.score += POINTS_FOR_DRAWER_PER_GUESSER;
 
       this.io.to(this.room.id).emit('correct_guess', {
         playerId: player.id,
@@ -191,16 +148,12 @@ export class Game {
         this.room.getSafeguardedRoomState()
       );
 
-      // End turn if everyone (except drawer) has guessed
       const allGuessed = this.room
         .getPlayers()
         .every(p => p.id === this.room.currentDrawerId || p.hasGuessedCorrectly);
 
-      if (allGuessed) {
-        this.endTurn();
-      }
+      if (allGuessed) this.endTurn();
     } else {
-      // Wrong guess → show as chat
       this.io.to(this.room.id).emit('chat_message', {
         playerId: player.id,
         playerName: player.name,
@@ -210,32 +163,21 @@ export class Game {
   }
 
   endTurn() {
-    if (this.room.timerInterval) {
-      clearInterval(this.room.timerInterval);
-    }
+    if (this.room.timerInterval) clearInterval(this.room.timerInterval);
 
-    this.io.to(this.room.id).emit('turn_end', {
-      word: this.room.currentWord,
-    });
-
-    // Clear canvas for all clients
+    this.io.to(this.room.id).emit('turn_end', { word: this.room.currentWord });
     this.io.to(this.room.id).emit('canvas_clear');
 
-    setTimeout(() => {
-      this.startTurn();
-    }, 3000);
+    // ── No delay: shift to next player immediately after word reveal ──
+    // The `turn_end` event already shows the word on clients.
+    // A small 1 s pause is enough for players to read it, with no artificial wait.
+    setTimeout(() => this.startTurn(), 1000);
   }
 
   endRound() {
-    this.io.to(this.room.id).emit('round_end', {
-      round: this.room.currentRound,
-    });
-
+    this.io.to(this.room.id).emit('round_end', { round: this.room.currentRound });
     this.room.currentRound++;
-
-    setTimeout(() => {
-      this.startRound();
-    }, 5000);
+    setTimeout(() => this.startRound(), 3000);
   }
 
   endGame() {
@@ -243,10 +185,7 @@ export class Game {
     this.room.currentRound = 0;
     this.room.currentDrawerId = null;
     this.room.currentWord = '';
-
-    if (this.room.timerInterval) {
-      clearInterval(this.room.timerInterval);
-    }
+    if (this.room.timerInterval) clearInterval(this.room.timerInterval);
 
     const leaderboard = this.room
       .getPlayers()
@@ -257,8 +196,6 @@ export class Game {
   }
 
   destroy() {
-    if (this.room.timerInterval) {
-      clearInterval(this.room.timerInterval);
-    }
+    if (this.room.timerInterval) clearInterval(this.room.timerInterval);
   }
 }
