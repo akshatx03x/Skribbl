@@ -76,7 +76,7 @@ export default function Chat({ inLobby = false }: { inLobby?: boolean }) {
               )}
               <div
                 className={clsx(
-                  'px-3 py-2 rounded-2xl break-words whitespace-pre-wrap shadow-sm text-sm',
+                  'px-3 py-2 rounded-2xl whitespace-pre-wrap shadow-sm text-sm',
                   isMine
                     ? 'bg-indigo-600 text-white rounded-tr-sm'
                     : 'bg-neutral-800 text-neutral-200 border border-white/5 rounded-tl-sm'
