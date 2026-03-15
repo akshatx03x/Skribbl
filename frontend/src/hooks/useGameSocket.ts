@@ -3,7 +3,7 @@ import { useGameStore, socket } from '../store/gameStore';
 import type { LeaderboardEntry } from '../types/Leaderboard';
 
 export function useGameSocket() {
-  const { setMyWord, setWordChoices, setWordHint, addMessage, setRoom, room } = useGameStore();
+  const { setMyWord, setWordChoices, setWordHint, addMessage, setRoom } = useGameStore();
 
   useEffect(() => {
     // ── Game lifecycle ──────────────────────────────────────────────────────

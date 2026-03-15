@@ -6,12 +6,12 @@ import Chat from '../components/Chat';
 import PlayerList from '../components/PlayerList';
 import WinnerList from '../components/WinnerList';
 import { useGameSocket } from '../hooks/useGameSocket';
-import { Users, Clock, Hash, Play, Trophy, RotateCcw, LogOut } from 'lucide-react';
+import { Users, Clock, Hash, Play, LogOut } from 'lucide-react';
 
 export default function Room() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
-  const { me, room, setRoom, resetGame, wordHint, myWord, wordChoices, setLeaderboard } = useGameStore();
+  const { me, room, setRoom, resetGame, wordHint, myWord, wordChoices } = useGameStore();
 
   useGameSocket();
 
