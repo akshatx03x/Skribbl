@@ -92,19 +92,6 @@ export default function Canvas({ isDrawer }: CanvasProps) {
 
   // --- Socket Listeners ---
   useEffect(() => {
-    const handleDrawMove = (data: { stroke: Stroke }) => {
-        setHistory(prev => {
-            const next = [...prev];
-            // If the last stroke doesn't have the same length (it's new), just append
-            // We need a more robust way to sync ongoing strokes, but for simplicity:
-            // The server just broadcasts complete stroke segments, or updates the whole history.
-            // Let's assume the remote user sends chunks.
-            // A simpler approach is to have the remote client send individual line_to commands,
-            // but for undo support, it's easier to maintain an array of strokes.
-            return next;
-        });
-    };
-
     socket.on('draw_start', (data: { point: {x:number, y:number}, color: string, size: number }) => {
       // Create a remote stroke
       setHistory(prev => [...prev, { points: [data.point], color: data.color, size: data.size }]);

@@ -1,13 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore, socket, type RoomState } from '../store/gameStore';
 import Canvas from '../components/Canvas';
 import Chat from '../components/Chat';
 import PlayerList from '../components/PlayerList';
-
 import { useGameSocket } from '../hooks/useGameSocket';
-import { Users, Clock, Hash, Play, HelpCircle } from 'lucide-react';
-import clsx from 'clsx';
+import { Users, Clock, Hash, Play } from 'lucide-react';
 
 export default function Room() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -17,27 +15,15 @@ export default function Room() {
   useGameSocket();
 
   useEffect(() => {
-    if (!me) {
-      navigate('/');
-      return;
-    }
+    if (!me) { navigate('/'); return; }
 
-    const onRoomUpdate = (updatedRoom: RoomState) => {
-      setRoom(updatedRoom);
-    };
-
-    const onError = (msg: string) => {
-      alert(msg);
-      navigate('/');
-    };
+    const onRoomUpdate = (updatedRoom: RoomState) => setRoom(updatedRoom);
+    const onError = (msg: string) => { alert(msg); navigate('/'); };
 
     socket.on('room_state_update', onRoomUpdate);
     socket.on('error_message', onError);
 
-    // Initial join/create is handled outside, but just in case we reconnected
-    if (!room) {
-      socket.emit('join_room', { roomId, playerName: me.name });
-    }
+    if (!room) socket.emit('join_room', { roomId, playerName: me.name });
 
     return () => {
       socket.off('room_state_update', onRoomUpdate);
@@ -47,163 +33,473 @@ export default function Room() {
 
   if (!room) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
-      </div>
+      <>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap');
+          .loading-screen {
+            min-height: 100vh; background: #0a0a0f;
+            display: flex; align-items: center; justify-content: center;
+            font-family: 'Syne', sans-serif;
+          }
+          .spinner {
+            width: 44px; height: 44px; border-radius: 50%;
+            border: 3px solid #ffffff10; border-top-color: #FF6B6B;
+            animation: spin 0.8s linear infinite;
+          }
+          @keyframes spin { to { transform: rotate(360deg); } }
+        `}</style>
+        <div className="loading-screen"><div className="spinner" /></div>
+      </>
     );
   }
 
   const isHost = me?.id === room.hostId;
   const isDrawer = room.currentDrawerId === me?.id;
   const drawerName = room.players.find(p => p.id === room.currentDrawerId)?.name || 'Someone';
+  const isUrgent = room.timeLeft <= 10;
 
+  /* ── LOBBY ─────────────────────────────────────────────────────── */
   if (!room.isGameStarted) {
-    // Lobby View
     return (
-      <div className="min-h-screen p-8 bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-900">
-        <div className="max-w-4xl mx-auto flex gap-8">
+      <>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap');
+          *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-          <div className="flex-1 bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-indigo-400">
-                Waiting Lobby
-              </h2>
-              <div className="px-4 py-2 bg-black/30 rounded-lg flex items-center gap-2 font-mono text-xl tracking-widest border border-white/10">
-                <Hash size={20} className="text-indigo-400" />
-                {room.id}
+          .lobby-root {
+            min-height: 100vh;
+            background: #0a0a0f;
+            display: flex; align-items: center; justify-content: center;
+            padding: 32px 24px;
+            font-family: 'DM Sans', sans-serif;
+            position: relative; overflow: hidden;
+          }
+          .lobby-root::before {
+            content: '';
+            position: fixed; inset: 0;
+            background-image: radial-gradient(circle, #ffffff08 1px, transparent 1px);
+            background-size: 32px 32px;
+            pointer-events: none;
+          }
+          .blob {
+            position: fixed; width: 500px; height: 500px;
+            border-radius: 50%; filter: blur(130px); opacity: 0.15; pointer-events: none;
+          }
+          .blob-a { top: -140px; left: -100px; background: #FF6B6B; }
+          .blob-b { bottom: -120px; right: -80px; background: #4f46e5; }
+
+          .lobby-inner {
+            position: relative; z-index: 1;
+            width: 100%; max-width: 960px;
+            display: flex; gap: 20px;
+          }
+
+          /* Left panel */
+          .lobby-main {
+            flex: 1;
+            background: #13131a;
+            border: 1px solid #ffffff15;
+            border-radius: 24px;
+            padding: 32px;
+            box-shadow: 0 32px 80px #00000060;
+          }
+
+          .lobby-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 28px;
+          }
+          .lobby-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.8rem; font-weight: 800;
+            color: #fff; letter-spacing: -0.5px;
+          }
+          .lobby-title span { color: #FF6B6B; }
+
+          .room-badge {
+            display: flex; align-items: center; gap-8px;
+            gap: 8px;
+            padding: 8px 16px;
+            background: #0d0d14;
+            border: 1.5px solid #ffffff15;
+            border-radius: 12px;
+            font-family: 'Syne', sans-serif;
+            font-size: 1.1rem; font-weight: 700;
+            letter-spacing: 0.2em; color: #fff;
+          }
+          .room-badge svg { color: #FF6B6B; }
+
+          /* Player grid */
+          .player-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 12px;
+            margin-bottom: 28px;
+          }
+
+          .player-tile {
+            background: #0d0d14;
+            border: 1.5px solid #ffffff0e;
+            border-radius: 16px;
+            padding: 20px 12px 16px;
+            display: flex; flex-direction: column; align-items: center;
+            gap: 10px;
+            position: relative;
+            transition: border-color 0.2s, transform 0.2s;
+          }
+          .player-tile:hover { border-color: #ffffff22; transform: translateY(-2px); }
+
+          .player-avatar {
+            width: 54px; height: 54px; border-radius: 50%;
+            background: linear-gradient(135deg, #FF6B6B, #c77dff);
+            display: flex; align-items: center; justify-content: center;
+            font-family: 'Syne', sans-serif;
+            font-size: 1.4rem; font-weight: 800; color: #fff;
+            box-shadow: 0 4px 16px #FF6B6B44;
+          }
+          .player-name {
+            font-size: 0.82rem; font-weight: 500;
+            color: #ffffffcc; text-align: center;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            width: 100%;
+          }
+          .host-badge {
+            position: absolute; top: 8px; right: 8px;
+            background: #FFD93D; color: #000;
+            font-family: 'Syne', sans-serif;
+            font-size: 0.55rem; font-weight: 800;
+            letter-spacing: 0.06em;
+            padding: 2px 7px; border-radius: 99px;
+          }
+
+          .empty-tile {
+            background: transparent;
+            border: 1.5px dashed #ffffff12;
+            border-radius: 16px;
+            padding: 20px 12px 16px;
+            display: flex; flex-direction: column; align-items: center;
+            gap: 10px;
+            color: #ffffff20;
+          }
+          .empty-tile svg { opacity: 0.4; }
+          .empty-label { font-size: 0.72rem; color: #ffffff20; }
+
+          /* Buttons */
+          .btn-start {
+            width: 100%; padding: 15px;
+            background: #22c55e;
+            border: none; border-radius: 14px;
+            color: #000;
+            font-family: 'Syne', sans-serif;
+            font-size: 1rem; font-weight: 800;
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            transition: opacity 0.18s, transform 0.15s, box-shadow 0.2s;
+            box-shadow: 0 6px 28px #22c55e44;
+          }
+          .btn-start:hover { opacity: 0.88; transform: translateY(-1px); }
+          .btn-start:active { transform: scale(0.97); }
+          .btn-start:disabled {
+            background: #1e1e28; color: #ffffff25;
+            box-shadow: none; cursor: not-allowed; transform: none;
+          }
+
+          .waiting-bar {
+            width: 100%; padding: 15px;
+            background: #0d0d14;
+            border: 1.5px solid #ffffff0e;
+            border-radius: 14px;
+            color: #ffffff40;
+            font-size: 0.88rem; font-weight: 500;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+          }
+          .waiting-bar svg { animation: pulse 1.5s ease-in-out infinite; }
+          @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+          /* Right panel — chat */
+          .lobby-chat {
+            width: 300px;
+            background: #13131a;
+            border: 1px solid #ffffff15;
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 32px 80px #00000060;
+            display: flex; flex-direction: column;
+          }
+          .chat-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 1rem; font-weight: 700;
+            color: #fff; margin-bottom: 16px;
+          }
+          .chat-title span { color: #FF6B6B; }
+        `}</style>
+
+        <div className="lobby-root">
+          <div className="blob blob-a" />
+          <div className="blob blob-b" />
+
+          <div className="lobby-inner">
+            <div className="lobby-main">
+              <div className="lobby-header">
+                <div className="lobby-title">
+                  Waiting <span>Room</span>
+                </div>
+                <div className="room-badge">
+                  <Hash size={16} />
+                  {room.id}
+                </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              {room.players.map((p) => (
-                <div key={p.id} className="bg-black/20 rounded-xl p-4 flex flex-col items-center justify-center border border-white/5 relative group transition-all hover:bg-black/30">
-                  <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-pink-500 to-indigo-500 flex items-center justify-center text-2xl font-bold text-white mb-3 shadow-lg group-hover:scale-105 transition-transform">
-                    {p.name.charAt(0).toUpperCase()}
+              <div className="player-grid">
+                {room.players.map((p) => (
+                  <div key={p.id} className="player-tile">
+                    <div className="player-avatar">{p.name.charAt(0).toUpperCase()}</div>
+                    <span className="player-name">{p.name}</span>
+                    {p.id === room.hostId && <span className="host-badge">HOST</span>}
                   </div>
-                  <span className="font-medium text-white/90 truncate w-full text-center">
-                    {p.name}
-                  </span>
-                  {p.id === room.hostId && (
-                    <span className="absolute top-2 right-2 text-xs bg-yellow-500 text-black px-2 py-1 rounded-full font-bold shadow-md">
-                      HOST
-                    </span>
-                  )}
-                </div>
-              ))}
+                ))}
+                {Array.from({ length: Math.max(0, room.settings.maxPlayers - room.players.length) }).map((_, i) => (
+                  <div key={`empty-${i}`} className="empty-tile">
+                    <Users size={28} />
+                    <span className="empty-label">Open slot</span>
+                  </div>
+                ))}
+              </div>
 
-              {Array.from({ length: Math.max(0, room.settings.maxPlayers - room.players.length) }).map((_, i) => (
-                <div key={`empty-${i}`} className="border-2 border-dashed border-white/10 rounded-xl p-4 flex flex-col items-center justify-center text-white/20">
-                  <Users size={32} className="mb-2 opacity-50" />
-                  <span className="text-sm font-medium">Waiting...</span>
+              {isHost ? (
+                <button
+                  className="btn-start"
+                  onClick={() => socket.emit('start_game')}
+                  disabled={room.players.length < 2}
+                >
+                  <Play size={20} />
+                  Launch Game
+                </button>
+              ) : (
+                <div className="waiting-bar">
+                  <Clock size={16} />
+                  Waiting for the host to start…
                 </div>
-              ))}
+              )}
             </div>
 
-            {isHost ? (
-              <button
-                onClick={() => socket.emit('start_game')}
-                disabled={room.players.length < 2}
-                className="w-full py-4 px-6 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 disabled:from-neutral-700 disabled:to-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg transform transition-all active:scale-95 flex justify-center items-center gap-2 text-lg"
-              >
-                <Play size={24} />
-                Start Game
-              </button>
-            ) : (
-              <div className="w-full py-4 text-center text-white/50 bg-black/20 rounded-xl border border-white/5 font-medium flex items-center justify-center gap-2">
-                <Clock className="animate-pulse" size={20} />
-                Waiting for host to start...
-              </div>
-            )}
-          </div>
-
-          <div className="w-80 flex flex-col gap-4">
-            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 h-full flex flex-col">
-              <h3 className="font-bold text-lg mb-4 text-white/90">Lobby Chat</h3>
+            <div className="lobby-chat">
+              <div className="chat-title">Lobby <span>Chat</span></div>
               <Chat inLobby={true} />
             </div>
           </div>
-
         </div>
-      </div>
+      </>
     );
   }
 
-  // Game View
+  /* ── GAME ───────────────────────────────────────────────────────── */
   return (
-    <div className="h-screen flex flex-col bg-neutral-900 overflow-hidden text-neutral-100">
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-      {/* Top Bar */}
-      <div className="h-16 flex items-center justify-between px-6 bg-neutral-950/50 border-b border-white/10 backdrop-blur-md z-10">
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col">
-            <span className="text-xs text-white/50 font-medium">Round {room.currentRound} of {room.settings.rounds}</span>
-            <div className="flex items-center gap-2 text-xl font-bold font-mono tracking-widest text-indigo-400">
-              <Clock size={20} className={clsx("transition-colors", room.timeLeft <= 10 && "text-red-500 animate-pulse")} />
-              <span className={clsx(room.timeLeft <= 10 && "text-red-500")}>{room.timeLeft}</span>
+        .game-root {
+          height: 100vh; display: flex; flex-direction: column;
+          background: #0a0a0f;
+          font-family: 'DM Sans', sans-serif;
+          overflow: hidden; color: #fff;
+        }
+
+        /* Top bar */
+        .topbar {
+          height: 60px; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 0 20px;
+          background: #13131a;
+          border-bottom: 1px solid #ffffff10;
+        }
+
+        .topbar-left { display: flex; align-items: center; gap: 16px; }
+
+        .round-info {
+          display: flex; flex-direction: column;
+          gap: 1px;
+        }
+        .round-label {
+          font-size: 0.62rem; font-weight: 500;
+          letter-spacing: 0.1em; text-transform: uppercase;
+          color: #ffffff35;
+        }
+        .timer-row {
+          display: flex; align-items: center; gap-6px;
+          gap: 6px;
+          font-family: 'Syne', sans-serif;
+          font-size: 1.3rem; font-weight: 800;
+          color: ${isUrgent ? '#ef4444' : '#FF6B6B'};
+          transition: color 0.3s;
+        }
+        .timer-row svg {
+          ${isUrgent ? 'animation: pulse 0.6s ease-in-out infinite;' : ''}
+        }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+        .topbar-center { flex: 1; display: flex; justify-content: center; align-items: center; }
+
+        .word-choices {
+          display: flex; align-items: center; gap: 10px;
+          background: #13131a;
+          border: 1px solid #ffffff15;
+          border-radius: 14px;
+          padding: 8px 16px;
+        }
+        .word-choices-label {
+          font-size: 0.7rem; color: #ffffff40;
+          letter-spacing: 0.08em; text-transform: uppercase;
+          margin-right: 4px;
+        }
+        .word-choice-btn {
+          padding: 7px 18px;
+          background: #FF6B6B;
+          border: none; border-radius: 10px;
+          color: #000;
+          font-family: 'Syne', sans-serif;
+          font-size: 0.82rem; font-weight: 800;
+          cursor: pointer;
+          transition: opacity 0.15s, transform 0.15s;
+        }
+        .word-choice-btn:hover { opacity: 0.85; transform: translateY(-1px); }
+
+        .my-word {
+          display: flex; align-items: center; gap: 10px;
+        }
+        .my-word-label {
+          font-size: 0.72rem; color: #ffffff40;
+          text-transform: uppercase; letter-spacing: 0.1em;
+        }
+        .my-word-value {
+          font-family: 'Syne', sans-serif;
+          font-size: 1.5rem; font-weight: 800;
+          letter-spacing: 0.05em; text-transform: uppercase;
+          color: #22c55e;
+          text-shadow: 0 0 20px #22c55e55;
+        }
+
+        .hint-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+        .hint-label {
+          font-size: 0.6rem; color: #ffffff30;
+          text-transform: uppercase; letter-spacing: 0.12em;
+        }
+        .hint-letters {
+          font-family: 'Syne', sans-serif;
+          font-size: 1.6rem; font-weight: 800;
+          letter-spacing: 0.45em;
+          color: #FFD93D;
+          text-shadow: 0 0 16px #FFD93D55;
+        }
+
+        .choosing-text {
+          font-size: 0.88rem; color: #ffffff50;
+          animation: fadepulse 1.4s ease-in-out infinite;
+        }
+        @keyframes fadepulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+        .topbar-right { display: flex; align-items: center; gap: 8px; }
+        .room-chip {
+          display: flex; align-items: center; gap: 6px;
+          padding: 6px 12px;
+          background: #0d0d14;
+          border: 1.5px solid #ffffff12;
+          border-radius: 10px;
+          font-family: 'Syne', sans-serif;
+          font-size: 0.82rem; font-weight: 700;
+          letter-spacing: 0.12em; color: #ffffff80;
+        }
+        .room-chip svg { color: #FF6B6B; }
+
+        /* Main area */
+        .game-body {
+          flex: 1; display: flex; overflow: hidden;
+          padding: 12px; gap: 12px;
+        }
+
+        .canvas-wrap {
+          flex: 1; min-width: 0;
+          background: #13131a;
+          border: 1px solid #ffffff10;
+          border-radius: 18px;
+          overflow: hidden;
+          position: relative;
+          box-shadow: 0 8px 40px #00000060;
+        }
+
+        .chat-wrap {
+          width: 288px; flex-shrink: 0;
+          background: #13131a;
+          border: 1px solid #ffffff10;
+          border-radius: 18px;
+          overflow: hidden;
+          box-shadow: 0 8px 40px #00000060;
+        }
+      `}</style>
+
+      <div className="game-root">
+        {/* Top bar */}
+        <div className="topbar">
+          <div className="topbar-left">
+            <div className="round-info">
+              <span className="round-label">Round {room.currentRound} / {room.settings.rounds}</span>
+              <div className="timer-row">
+                <Clock size={18} style={{ color: isUrgent ? '#ef4444' : '#FF6B6B', ...(isUrgent ? { animation: 'pulse 0.6s ease-in-out infinite' } : {}) }} />
+                <span style={{ color: isUrgent ? '#ef4444' : '#FF6B6B' }}>{room.timeLeft}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="topbar-center">
+            {wordChoices.length > 0 && isDrawer ? (
+              <div className="word-choices">
+                <span className="word-choices-label">Pick a word</span>
+                {wordChoices.map(w => (
+                  <button key={w} className="word-choice-btn" onClick={() => socket.emit('word_selected', w)}>
+                    {w}
+                  </button>
+                ))}
+              </div>
+            ) : myWord ? (
+              <div className="my-word">
+                <span className="my-word-label">Draw this:</span>
+                <span className="my-word-value">{myWord}</span>
+              </div>
+            ) : wordHint ? (
+              <div className="hint-wrap">
+                <span className="hint-label">Guess the word</span>
+                <span className="hint-letters">{wordHint.split('').join(' ')}</span>
+              </div>
+            ) : room.currentDrawerId ? (
+              <span className="choosing-text">{drawerName} is picking a word…</span>
+            ) : (
+              <span className="choosing-text">Waiting…</span>
+            )}
+          </div>
+
+          <div className="topbar-right">
+            <div className="room-chip">
+              <Hash size={14} />
+              {room.id}
             </div>
           </div>
         </div>
 
-        <div className="flex-1 flex justify-center items-center">
-          {wordChoices.length > 0 && isDrawer ? (
-            <div className="flex bg-black/50 p-3 rounded-2xl gap-3 backdrop-blur-sm border border-white/10 shadow-2xl">
-              <span className="text-white/50 text-sm flex items-center mr-2">Choose a word:</span>
-              {wordChoices.map(w => (
-                <button
-                  key={w}
-                  onClick={() => socket.emit('word_selected', w)}
-                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold transition-transform hover:scale-105 active:scale-95 shadow-lg"
-                >
-                  {w}
-                </button>
-              ))}
-            </div>
-          ) : myWord ? (
-            <div className="flex items-center gap-3">
-              <span className="text-white/50 font-medium">Draw this:</span>
-              <span className="text-3xl font-bold tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 uppercase drop-shadow-sm">
-                {myWord}
-              </span>
-            </div>
-          ) : wordHint ? (
-            <div className="flex flex-col items-center">
-              <span className="text-xs text-white/50 font-medium tracking-wider mb-1 uppercase">Guess the word</span>
-              <span className="text-3xl font-mono tracking-[0.5em] font-bold text-yellow-400 drop-shadow-md">
-                {wordHint.split('').join(' ')}
-              </span>
-            </div>
-          ) : room.currentDrawerId ? (
-            <div className="animate-pulse flex items-center gap-2 text-white/70">
-              {drawerName} is choosing a word...
-            </div>
-          ) : (
-            <div className="text-white/50 italic">Waiting...</div>
-          )}
-        </div>
+        {/* Body */}
+        <div className="game-body">
+          <PlayerList players={room.players} drawerId={room.currentDrawerId} />
 
-        <div className="flex items-center gap-3 text-sm font-medium">
-          <div className="px-3 py-1.5 bg-white/5 rounded-lg border border-white/10 flex items-center gap-2">
-            <Hash size={16} className="text-indigo-400" /> {room.id}
-          </div>
-        </div>
-      </div>
-
-      {/* Main Game Area */}
-      <div className="flex-1 flex overflow-hidden p-4 gap-4">
-        <PlayerList players={room.players} drawerId={room.currentDrawerId} />
-
-        <div className="flex-1 flex flex-col min-w-0 bg-neutral-950 rounded-2xl overflow-hidden border border-white/5 shadow-2xl relative shadow-black/50">
-
-          <div className="flex-1 relative cursor-crosshair">
+          <div className="canvas-wrap">
             <Canvas isDrawer={isDrawer} />
           </div>
-        </div>
 
-        <div className="w-80 flex flex-col bg-neutral-950 rounded-2xl overflow-hidden border border-white/5 shadow-xl shadow-black/50">
-          <Chat />
+          <div className="chat-wrap">
+            <Chat />
+          </div>
         </div>
       </div>
-
-    </div>
+    </>
   );
 }
