@@ -13,23 +13,18 @@ export default function Room() {
   const navigate = useNavigate();
   const { me, room, setRoom, resetGame, wordHint, myWord, wordChoices } = useGameStore();
 
-  // Prevent accidental back navigation (requires double-back)
+  // Prevent accidental back navigation
   useEffect(() => {
-    // Duplicate current history entry
     window.history.pushState(null, '', window.location.href);
-    
     const handlePopState = () => {
-      // Block first back, duplicate again
       window.history.pushState(null, '', window.location.href);
     };
-    
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   useGameSocket();
 
-  // ── FIX: useState + setInterval for smooth client-side countdown ──
   const [computedTimeLeft, setComputedTimeLeft] = useState(0);
 
   useEffect(() => {
@@ -40,8 +35,8 @@ export default function Room() {
         setComputedTimeLeft(room?.timeLeft || 0);
       }
     };
-    tick(); // run immediately on mount / room change
-    const id = setInterval(tick, 500); // 500 ms for accuracy
+    tick();
+    const id = setInterval(tick, 500);
     return () => clearInterval(id);
   }, [room?.turnEndTime, room?.timeLeft]);
 
@@ -50,26 +45,20 @@ export default function Room() {
   const isDrawer = room?.currentDrawerId === me?.id;
   const drawerName = room?.players.find(p => p.id === room?.currentDrawerId)?.name || 'Someone';
 
-  // Auto-refresh on socket connect (for Render cold starts)
   useEffect(() => {
     const onConnect = () => {
       if (document.visibilityState === 'visible') {
         window.location.reload();
       }
     };
-
     socket.on('connect', onConnect);
-    return () => {
-      socket.off('connect', onConnect);
-    };
+    return () => { socket.off('connect', onConnect); };
   }, []);
 
   useEffect(() => {
     if (!me) { navigate('/'); return; }
-
     const onRoomUpdate = (updatedRoom: RoomState) => {
       setRoom(updatedRoom);
-      // Show success message when room loads
       useGameStore.getState().addMessage({
         playerId: 'system',
         playerName: 'System',
@@ -78,12 +67,9 @@ export default function Room() {
       });
     };
     const onError = (msg: string) => { alert(msg); navigate('/'); };
-
     socket.on('room_state_update', onRoomUpdate);
     socket.on('error_message', onError);
-
     socket.emit('join_room', { roomId, playerName: me.name });
-
     return () => {
       socket.off('room_state_update', onRoomUpdate);
       socket.off('error_message', onError);
@@ -96,7 +82,6 @@ export default function Room() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Stable firework positions — computed once, never on re-render
   const fireworks = useMemo(() =>
     Array.from({ length: 24 }, (_, i) => ({
       id: i,
@@ -106,6 +91,7 @@ export default function Room() {
       color: ['#FFD700','#FF6B6B','#4f46e5','#22c55e','#FFD93D','#c77dff'][i % 6],
     })), []);
 
+  /* ── LOADING ──────────────────────────────────────────────────── */
   if (!room) {
     return (
       <>
@@ -224,7 +210,6 @@ export default function Room() {
           .waiting-bar svg { animation:pulse 1.5s ease-in-out infinite; }
           @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
-          /* Lobby Chat sidebar */
           .lobby-chat {
             width:300px; flex-shrink:0;
             background:#13131a; border:1px solid #ffffff15; border-radius:24px;
@@ -234,7 +219,6 @@ export default function Room() {
           .chat-title { font-family:'Syne',sans-serif; font-size:1rem; font-weight:700; color:#fff; margin-bottom:16px; }
           .chat-title span { color:#FF6B6B; }
 
-          /* ── Tablet: stack chat below ──────────────────────────── */
           @media (max-width: 768px) {
             .lobby-root { padding: 20px 16px; align-items: flex-start; }
             .lobby-inner { flex-direction: column; gap: 16px; }
@@ -246,7 +230,6 @@ export default function Room() {
             .blob { width: 300px; height: 300px; filter: blur(80px); }
           }
 
-          /* ── Phone: tighten further ───────────────────────────── */
           @media (max-width: 480px) {
             .lobby-root { padding: 16px 12px; }
             .lobby-main { padding: 20px 16px; }
@@ -307,7 +290,7 @@ export default function Room() {
     );
   }
 
-  /* ── GAME OVER OVERLAY ──────────────────────────────────────────── */
+  /* ── GAME OVER ──────────────────────────────────────────────────── */
   if (room.leaderboard) {
     const sorted = [...room.leaderboard].sort((a, b) => b.score - a.score);
     const winner = sorted[0];
@@ -319,8 +302,7 @@ export default function Room() {
           *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
 
           .go-root {
-            height: 100vh; height: 100dvh;
-            width: 100vw;
+            height: 100vh; height: 100dvh; width: 100vw;
             background: #0a0a0f;
             display: flex; align-items: center; justify-content: center;
             font-family: 'DM Sans', sans-serif;
@@ -328,28 +310,23 @@ export default function Room() {
             padding: 16px;
           }
           .go-root::before {
-            content: '';
-            position: fixed; inset: 0;
+            content: ''; position: fixed; inset: 0;
             background-image: radial-gradient(circle, #ffffff06 1px, transparent 1px);
-            background-size: 28px 28px;
-            pointer-events: none;
+            background-size: 28px 28px; pointer-events: none;
           }
-
           .go-blob { position: fixed; border-radius: 50%; filter: blur(120px); pointer-events: none; opacity: 0.12; }
           .go-blob-a { width:600px; height:600px; top:-180px; left:-120px; background:#FFD700; }
           .go-blob-b { width:500px; height:500px; bottom:-140px; right:-100px; background:#4f46e5; }
           .go-blob-c { width:300px; height:300px; top:40%; left:50%; transform:translate(-50%,-50%); background:#FF6B6B; opacity:0.07; }
-
           .go-fw {
             position: fixed; width:5px; height:5px; border-radius:50%; bottom:-10px;
             animation: goFw linear infinite;
           }
           @keyframes goFw {
-            0%   { transform:translateY(0) scale(1);   opacity:1; }
+            0%   { transform:translateY(0) scale(1); opacity:1; }
             80%  { opacity:0.6; }
             100% { transform:translateY(-105vh) scale(0); opacity:0; }
           }
-
           .go-card {
             position: relative; z-index: 10;
             background: #13131a; border: 1px solid #ffffff12; border-radius: 28px;
@@ -357,22 +334,18 @@ export default function Room() {
             width: 100%; max-width: 580px;
             box-shadow: 0 40px 100px #00000080;
             animation: goSlide 0.55s cubic-bezier(0.25,0.46,0.45,0.94);
-            /* Allow scroll on small screens */
-            max-height: calc(100vh - 32px);
-            max-height: calc(100dvh - 32px);
+            max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px);
             overflow-y: auto;
           }
           @keyframes goSlide {
             from { opacity:0; transform:scale(0.88) translateY(28px); }
-            to   { opacity:1; transform:scale(1)    translateY(0);    }
+            to   { opacity:1; transform:scale(1) translateY(0); }
           }
-
           @keyframes goGlow {
             0%,100% { filter:drop-shadow(0 0 14px #FFD700) drop-shadow(0 0 28px #FFA500); }
             50%     { filter:drop-shadow(0 0 24px #FFD700) drop-shadow(0 0 48px #FFA500) drop-shadow(0 0 8px #FF6B6B); }
           }
           .go-trophy { animation: goGlow 2.2s ease-in-out infinite; }
-
           .go-btn-primary {
             flex: 1; padding: 14px 0;
             background: #22c55e; border: none; border-radius: 14px;
@@ -384,7 +357,6 @@ export default function Room() {
           }
           .go-btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
           .go-btn-primary:active { transform: scale(0.97); }
-
           .go-btn-secondary {
             flex: 1; padding: 14px 0;
             background: transparent; border: 1.5px solid #ffffff20; border-radius: 14px;
@@ -395,25 +367,19 @@ export default function Room() {
           }
           .go-btn-secondary:hover { border-color: #ffffff44; background: #ffffff08; transform: translateY(-1px); }
           .go-btn-secondary:active { transform: scale(0.97); }
-
           .go-divider {
             height: 1px; background: linear-gradient(90deg, transparent, #ffffff15, transparent);
             margin: 24px 0;
           }
-
-          /* ── Tablet / Phone ──────────────────────────────────── */
           @media (max-width: 600px) {
             .go-card { padding: 28px 24px 24px; border-radius: 20px; }
             .go-blob-a { width: 320px; height: 320px; filter: blur(80px); }
             .go-blob-b { width: 280px; height: 280px; filter: blur(80px); }
           }
-
           @media (max-width: 400px) {
             .go-card { padding: 22px 16px 20px; border-radius: 16px; }
-            /* Reduce fireworks on tiny screens */
             .go-fw:nth-child(n+13) { display: none; }
           }
-
           @media (hover: none) {
             .go-btn-primary:hover { opacity: 1; transform: none; }
             .go-btn-secondary:hover { border-color: #ffffff20; background: transparent; transform: none; }
@@ -424,27 +390,17 @@ export default function Room() {
           <div className="go-blob go-blob-a" />
           <div className="go-blob go-blob-b" />
           <div className="go-blob go-blob-c" />
-
           {fireworks.map(fw => (
             <div key={fw.id} className="go-fw" style={{
-              left: fw.left,
-              background: fw.color,
-              animationDelay: fw.delay,
-              animationDuration: fw.duration,
+              left: fw.left, background: fw.color,
+              animationDelay: fw.delay, animationDuration: fw.duration,
               boxShadow: `0 0 6px 2px ${fw.color}88`,
             }} />
           ))}
-
           <div className="go-card">
             <div style={{ textAlign: 'center', marginBottom: 28 }}>
               <div className="go-trophy" style={{ fontSize: '3.4rem', lineHeight: 1, marginBottom: 12 }}>🏆</div>
-              <div style={{
-                fontFamily: 'Syne, sans-serif',
-                fontWeight: 800, fontSize: 'clamp(1.4rem, 5vw, 2rem)',
-                color: '#FFD700',
-                letterSpacing: '-0.5px',
-                marginBottom: 6,
-              }}>
+              <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 'clamp(1.4rem, 5vw, 2rem)', color: '#FFD700', letterSpacing: '-0.5px', marginBottom: 6 }}>
                 Game Complete!
               </div>
               {winner && (
@@ -453,20 +409,12 @@ export default function Room() {
                 </div>
               )}
             </div>
-
             <div className="go-divider" />
-
-            <div style={{
-              fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.12em',
-              textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 12,
-            }}>
+            <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 12 }}>
               Final Standings
             </div>
-
             <WinnerList leaderboard={sorted} />
-
             <div className="go-divider" />
-
             <div style={{ display: 'flex', gap: 12 }}>
               <button className="go-btn-secondary" onClick={() => navigate('/')}>
                 <LogOut size={17} />New Game
@@ -483,140 +431,390 @@ export default function Room() {
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap');
-        *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+        /* ═══════════════════════════════════════════════════════════
+           ROOT — fills the entire viewport, nothing overflows
+        ═══════════════════════════════════════════════════════════ */
         .game-root {
-          height: 100vh; height: 100dvh;
-          display: flex; flex-direction: column;
+          height: 100vh;
+          height: 100dvh;
+          width: 100vw;
+          display: flex;
+          flex-direction: column;
           background: #0a0a0f;
           font-family: 'DM Sans', sans-serif;
-          overflow: hidden; color: #fff;
+          overflow: hidden;
+          color: #fff;
         }
 
-        /* ── Top bar ────────────────────────────────────────────── */
+        /* ── TOP BAR ─────────────────────────────────────────────── */
         .topbar {
-          height: 60px; flex-shrink: 0;
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 0 20px;
-          background: #13131a; border-bottom: 1px solid #ffffff10;
+          height: 52px;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 16px;
+          background: #13131a;
+          border-bottom: 1px solid #ffffff10;
           gap: 8px;
+          /* Never let topbar grow taller */
+          overflow: hidden;
         }
-        .topbar-left { display:flex; align-items:center; gap:16px; flex-shrink:0; }
-        .round-info { display:flex; flex-direction:column; gap:1px; }
-        .round-label { font-size:0.62rem; font-weight:500; letter-spacing:0.1em; text-transform:uppercase; color:#ffffff35; }
-        .timer-row { display:flex; align-items:center; gap:6px; font-family:'Syne',sans-serif; font-size:1.3rem; font-weight:800; transition:color 0.3s; }
+
+        .topbar-left {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-shrink: 0;
+        }
+
+        .round-info {
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+        }
+
+        .round-label {
+          font-size: 0.58rem;
+          font-weight: 500;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #ffffff35;
+          white-space: nowrap;
+        }
+
+        .timer-row {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          font-family: 'Syne', sans-serif;
+          font-size: 1.2rem;
+          font-weight: 800;
+          transition: color 0.3s;
+        }
+
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+        /* ── CENTRE AREA OF TOPBAR (word / hint / choices) ────────── */
+        .topbar-center {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+        }
+
+        /* Word choices: pill buttons, scroll if they overflow */
         .word-choices {
-          display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
-          background: #13131a; border: 1px solid #ffffff15; border-radius: 14px;
-          padding: 8px 16px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+          max-width: 100%;
+          padding: 0 2px;
         }
-        .word-choices-label { font-size:0.7rem; color:#ffffff40; letter-spacing:0.08em; text-transform:uppercase; margin-right:4px; }
+        .word-choices::-webkit-scrollbar { display: none; }
+
+        .word-choices-label {
+          font-size: 0.65rem;
+          color: #ffffff40;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          flex-shrink: 0;
+        }
+
         .word-choice-btn {
-          padding: 7px 18px; background: #FF6B6B; border: none; border-radius: 10px;
-          color: #000; font-family: 'Syne', sans-serif; font-size: 0.82rem; font-weight: 800;
-          cursor: pointer; transition: opacity 0.15s, transform 0.15s;
-          min-height: 36px; touch-action: manipulation;
+          padding: 6px 14px;
+          background: #FF6B6B;
+          border: none;
+          border-radius: 99px;
+          color: #000;
+          font-family: 'Syne', sans-serif;
+          font-size: 0.78rem;
+          font-weight: 800;
+          cursor: pointer;
+          white-space: nowrap;
+          flex-shrink: 0;
+          transition: opacity 0.15s, transform 0.15s;
+          min-height: 32px;
+          touch-action: manipulation;
         }
-        .word-choice-btn:hover { opacity: 0.85; transform: translateY(-1px); }
-        .my-word { display:flex; align-items:center; gap:10px; min-width:0; }
-        .my-word-label { font-size:0.72rem; color:#ffffff40; text-transform:uppercase; letter-spacing:0.1em; flex-shrink:0; }
+        .word-choice-btn:hover { opacity: 0.85; }
+        .word-choice-btn:active { transform: scale(0.95); }
+
+        /* My word (drawer) */
+        .my-word {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-width: 0;
+          overflow: hidden;
+        }
+        .my-word-label {
+          font-size: 0.65rem;
+          color: #ffffff40;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          flex-shrink: 0;
+        }
         .my-word-value {
-          font-family: 'Syne', sans-serif; font-size: clamp(1rem, 3vw, 1.5rem);
-          font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;
-          color: #22c55e; text-shadow: 0 0 20px #22c55e55;
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+          font-family: 'Syne', sans-serif;
+          font-size: clamp(0.9rem, 4vw, 1.4rem);
+          font-weight: 800;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          color: #22c55e;
+          text-shadow: 0 0 20px #22c55e55;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
-        .hint-wrap { display:flex; flex-direction:column; align-items:center; gap:2px; min-width:0; }
-        .hint-label { font-size:0.6rem; color:#ffffff30; text-transform:uppercase; letter-spacing:0.12em; }
+
+        /* Word hint (guesser) */
+        .hint-wrap {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1px;
+          min-width: 0;
+          overflow: hidden;
+        }
+        .hint-label {
+          font-size: 0.58rem;
+          color: #ffffff30;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+        }
         .hint-letters {
           font-family: 'Syne', sans-serif;
-          font-size: clamp(1rem, 3.5vw, 1.6rem);
-          font-weight: 800; letter-spacing: 0.45em;
-          color: #FFD93D; text-shadow: 0 0 16px #FFD93D55;
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+          font-size: clamp(0.9rem, 4vw, 1.5rem);
+          font-weight: 800;
+          letter-spacing: 0.4em;
+          color: #FFD93D;
+          text-shadow: 0 0 16px #FFD93D55;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 100%;
         }
-        .choosing-text { font-size:0.88rem; color:#ffffff50; animation:fadepulse 1.4s ease-in-out infinite; white-space:nowrap; }
+
+        .choosing-text {
+          font-size: 0.82rem;
+          color: #ffffff50;
+          animation: fadepulse 1.4s ease-in-out infinite;
+          white-space: nowrap;
+        }
         @keyframes fadepulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
-        .topbar-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+        .topbar-right {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-shrink: 0;
+        }
+
         .room-chip {
-          display:flex; align-items:center; gap:6px; padding:6px 12px;
-          background:#0d0d14; border:1.5px solid #ffffff12; border-radius:10px;
-          font-family:'Syne',sans-serif; font-size:0.82rem; font-weight:700; letter-spacing:0.12em; color:#ffffff80;
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          padding: 5px 10px;
+          background: #0d0d14;
+          border: 1.5px solid #ffffff12;
+          border-radius: 9px;
+          font-family: 'Syne', sans-serif;
+          font-size: 0.75rem;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          color: #ffffff80;
+          white-space: nowrap;
         }
-        .room-chip svg { color:#FF6B6B; }
+        .room-chip svg { color: #FF6B6B; }
 
-        /* ── Game body ──────────────────────────────────────────── */
+        /* ═══════════════════════════════════════════════════════════
+           GAME BODY — the area under the topbar
+        ═══════════════════════════════════════════════════════════ */
+
+        /*
+         * DESKTOP / TABLET LANDSCAPE (> 700 px wide):
+         *   [ PlayerList ] [ Canvas ] [ Chat ]
+         *   All side-by-side, single row.
+         */
         .game-body {
-          flex: 1; display: flex; overflow: hidden;
-          padding: 12px; gap: 12px;
+          flex: 1;
+          min-height: 0;          /* ← critical: allow flex child to shrink */
+          display: flex;
+          flex-direction: row;
+          overflow: hidden;
+          padding: 10px;
+          gap: 10px;
         }
+
         .canvas-wrap {
-          flex: 1; min-width: 0;
-          background: #13131a; border: 1px solid #ffffff10; border-radius: 18px;
-          overflow: hidden; position: relative; box-shadow: 0 8px 40px #00000060;
+          flex: 1;
+          min-width: 0;
+          min-height: 0;
+          background: #13131a;
+          border: 1px solid #ffffff10;
+          border-radius: 16px;
+          overflow: hidden;
+          position: relative;
+          box-shadow: 0 8px 40px #00000060;
         }
+
         .chat-wrap {
-          width: 288px; flex-shrink: 0;
-          background: #13131a; border: 1px solid #ffffff10; border-radius: 18px;
-          overflow: hidden; box-shadow: 0 8px 40px #00000060;
+          width: 260px;
+          flex-shrink: 0;
+          min-height: 0;
+          background: #13131a;
+          border: 1px solid #ffffff10;
+          border-radius: 16px;
+          overflow: hidden;
+          box-shadow: 0 8px 40px #00000060;
         }
 
-        /* ── Tablet: hide player list, shrink chat ───────────────── */
+        /* ── Reduce chat at medium tablet ────────────────────────── */
         @media (max-width: 900px) {
-          .chat-wrap { width: 240px; }
+          .chat-wrap { width: 220px; }
         }
 
-        /* ── Small tablet / large phone landscape ────────────────── */
+        /* ═══════════════════════════════════════════════════════════
+           MOBILE PORTRAIT  ≤ 700 px wide
+           Stack:  topbar / canvas / player-row / chat
+        ═══════════════════════════════════════════════════════════ */
         @media (max-width: 700px) {
-          .topbar { padding: 0 12px; height: 52px; }
-          .timer-row { font-size: 1.1rem; }
+
+          /* Topbar */
+          .topbar {
+            height: auto;
+            min-height: 48px;
+            padding: 6px 10px;
+            flex-wrap: nowrap;
+          }
           .round-label { display: none; }
-          .room-chip { display: none; }
-          .game-body { padding: 8px; gap: 8px; flex-direction: column; }
-          .chat-wrap { width: 100%; height: 200px; flex-shrink: 0; }
+          .room-chip   { display: none; }
+          .timer-row   { font-size: 1rem; }
+
+          /* Body: column stack */
+          .game-body {
+            flex-direction: column;
+            padding: 6px;
+            gap: 6px;
+          }
+
+          /* Canvas gets a fixed reasonable height; adjusts with dvh */
+          .canvas-wrap {
+            /* Take up as much remaining space as possible */
+            flex: 1;
+            min-height: 180px;
+            border-radius: 12px;
+          }
+
+          /* Chat pinned to bottom, fixed height */
+          .chat-wrap {
+            width: 100%;
+            height: 170px;
+            flex-shrink: 0;
+            border-radius: 12px;
+          }
+
+          /* PlayerList becomes a horizontal strip — handled below */
+        }
+
+        /* ── Extra-small phones (≤ 400 px wide) ─────────────────── */
+        @media (max-width: 400px) {
+          .topbar { padding: 5px 8px; }
+          .timer-row { font-size: 0.95rem; }
+          .word-choice-btn { padding: 5px 10px; font-size: 0.72rem; }
+          .game-body { padding: 4px; gap: 4px; }
+          .chat-wrap { height: 150px; }
+        }
+
+        /* ── Landscape phone: side-by-side again ─────────────────── */
+        @media (max-width: 700px) and (orientation: landscape) {
+          .game-body { flex-direction: row; }
           .canvas-wrap { flex: 1; min-height: 0; }
+          .chat-wrap { width: 190px; height: auto; }
         }
 
-        /* ── Phone portrait ──────────────────────────────────────── */
-        @media (max-width: 480px) {
-          .topbar { height: 48px; padding: 0 10px; gap: 6px; }
-          .timer-row { font-size: 1rem; }
-          .word-choices { padding: 6px 10px; gap: 6px; border: none; background: transparent; }
-          .word-choice-btn { padding: 6px 12px; font-size: 0.75rem; }
-          .choosing-text { font-size: 0.78rem; }
-          .my-word-label { display: none; }
-          .game-body { padding: 6px; gap: 6px; }
-          .chat-wrap { height: 180px; border-radius: 12px; }
-          .canvas-wrap { border-radius: 12px; }
-        }
-
-        /* ── Very small phones ────────────────────────────────────── */
-        @media (max-width: 360px) {
-          .chat-wrap { height: 160px; }
-        }
-
+        /* ── Suppress hover effects on touch devices ─────────────── */
         @media (hover: none) {
           .word-choice-btn:hover { opacity: 1; transform: none; }
         }
 
-        /* ── Landscape phone: keep chat to the side ──────────────── */
+        /* ═══════════════════════════════════════════════════════════
+           PLAYER LIST — horizontal scrolling strip on mobile
+           (PlayerList component renders inside .player-list-wrap)
+        ═══════════════════════════════════════════════════════════ */
+        /*
+         * On desktop the PlayerList sits as a sidebar column.
+         * On mobile (≤700px) we inject a thin horizontal strip
+         * between the topbar and the canvas.
+         * The PlayerList component itself must be flexible —
+         * these wrapper rules handle placement.
+         */
+
+        /* Desktop sidebar */
+        .player-list-wrap {
+          width: 130px;
+          flex-shrink: 0;
+          min-height: 0;
+          background: #13131a;
+          border: 1px solid #ffffff10;
+          border-radius: 16px;
+          overflow-y: auto;
+          overflow-x: hidden;
+          box-shadow: 0 8px 40px #00000060;
+        }
+
+        @media (max-width: 900px) {
+          .player-list-wrap { width: 110px; }
+        }
+
+        /* Mobile: thin horizontal scrolling strip */
+        @media (max-width: 700px) {
+          .player-list-wrap {
+            width: 100%;
+            height: 58px;          /* fixed strip height */
+            flex-shrink: 0;
+            border-radius: 10px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+          }
+          .player-list-wrap::-webkit-scrollbar { display: none; }
+        }
+
         @media (max-width: 700px) and (orientation: landscape) {
-          .game-body { flex-direction: row; }
-          .chat-wrap { width: 200px; height: auto; flex-shrink: 0; }
-          .canvas-wrap { flex: 1; }
+          .player-list-wrap {
+            width: 64px;
+            height: auto;
+            overflow-x: hidden;
+            overflow-y: auto;
+          }
         }
       `}</style>
 
       <div className="game-root">
+
+        {/* ── TOP BAR ───────────────────────────────────────────────── */}
         <div className="topbar">
           <div className="topbar-left">
             <div className="round-info">
               <span className="round-label">Round {room.currentRound} / {room.settings.rounds}</span>
               <div className="timer-row">
-                <Clock size={18} style={{ color: isUrgent ? '#ef4444' : '#FF6B6B', ...(isUrgent ? { animation: 'pulse 0.6s ease-in-out infinite' } : {}) }} />
-                {/* ── FIX: use computedTimeLeft (state) instead of room.timeLeft ── */}
+                <Clock
+                  size={16}
+                  style={{
+                    color: isUrgent ? '#ef4444' : '#FF6B6B',
+                    ...(isUrgent ? { animation: 'pulse 0.6s ease-in-out infinite' } : {}),
+                  }}
+                />
                 <span style={{ color: isUrgent ? '#ef4444' : '#FF6B6B' }}>{computedTimeLeft}</span>
               </div>
             </div>
@@ -627,17 +825,23 @@ export default function Room() {
               <div className="word-choices">
                 <span className="word-choices-label">Pick</span>
                 {wordChoices.map(w => (
-                  <button key={w} className="word-choice-btn" onClick={() => socket.emit('word_selected', w)}>{w}</button>
+                  <button
+                    key={w}
+                    className="word-choice-btn"
+                    onClick={() => socket.emit('word_selected', w)}
+                  >
+                    {w}
+                  </button>
                 ))}
               </div>
             ) : myWord ? (
               <div className="my-word">
-                <span className="my-word-label">Draw this:</span>
+                <span className="my-word-label">Draw:</span>
                 <span className="my-word-value">{myWord}</span>
               </div>
             ) : wordHint ? (
               <div className="hint-wrap">
-                <span className="hint-label">Guess the word</span>
+                <span className="hint-label">Guess</span>
                 <span className="hint-letters">{wordHint.split('').join(' ')}</span>
               </div>
             ) : room.currentDrawerId ? (
@@ -648,15 +852,28 @@ export default function Room() {
           </div>
 
           <div className="topbar-right">
-            <div className="room-chip"><Hash size={14} />{room.id}</div>
+            <div className="room-chip"><Hash size={13} />{room.id}</div>
           </div>
         </div>
 
+        {/* ── GAME BODY ─────────────────────────────────────────────── */}
         <div className="game-body">
-          <PlayerList players={room.players} drawerId={room.currentDrawerId} />
-          <div className="canvas-wrap"><Canvas isDrawer={isDrawer} /></div>
-          <div className="chat-wrap"><Chat /></div>
+          {/* Player list — sidebar on desktop, horizontal strip on mobile */}
+          <div className="player-list-wrap">
+            <PlayerList players={room.players} drawerId={room.currentDrawerId} />
+          </div>
+
+          {/* Canvas */}
+          <div className="canvas-wrap">
+            <Canvas isDrawer={isDrawer} />
+          </div>
+
+          {/* Chat */}
+          <div className="chat-wrap">
+            <Chat />
+          </div>
         </div>
+
       </div>
     </>
   );
