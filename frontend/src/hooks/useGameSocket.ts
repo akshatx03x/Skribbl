@@ -61,11 +61,10 @@ export function useGameSocket() {
     });
 
     // ── Timer ───────────────────────────────────────────────────────────────
-    // Keep the store's timeLeft in sync so the topbar timer stays accurate.
-    socket.on('timer_update', (timeLeft: number) => {
+    socket.on('timer_sync', ({ endTime }: { endTime: number }) => {
       const latestRoom = useGameStore.getState().room;
       if (latestRoom) {
-        setRoom({ ...latestRoom, timeLeft });
+        setRoom({ ...latestRoom, turnEndTime: endTime });
       }
     });
 
@@ -129,7 +128,7 @@ export function useGameSocket() {
       socket.off('word_choices');
       socket.off('word_hint');
       socket.off('your_word');
-      socket.off('timer_update');
+      socket.off('timer_sync');
       socket.off('correct_guess');
       socket.off('chat_message');
       socket.off('turn_end');

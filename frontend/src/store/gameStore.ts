@@ -30,6 +30,7 @@ export interface RoomState {
   currentRound: number;
   currentDrawerId: string | null;
   timeLeft: number;
+  turnEndTime?: number;
   leaderboard?: LeaderboardEntry[];
 }
 
@@ -89,3 +90,4 @@ export const useGameStore = create<GameStore>((set) => ({
     wordChoices: [],
   }),
 }));
+

@@ -21,6 +21,7 @@ export class Room {
   currentDrawerId: string | null = null;
   currentWord: string = '';
   timeLeft: number = 0;
+  turnEndTime: number = 0;
   timerInterval: NodeJS.Timeout | null = null;
 
   constructor(id: string, hostId: string, settings?: Partial<RoomSettings>) {
@@ -72,6 +73,7 @@ export class Room {
       currentRound:    this.currentRound,
       currentDrawerId: this.currentDrawerId,
       timeLeft:        this.timeLeft,
+      turnEndTime:     this.turnEndTime,
     };
   }
 }

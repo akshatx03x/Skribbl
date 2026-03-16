@@ -15,10 +15,43 @@ export default function Room() {
 
   useGameSocket();
 
+  // Client-side smooth countdown from server endTime
+  const computedTimeLeft = room && room.turnEndTime 
+    ? Math.max(0, Math.floor((room.turnEndTime - Date.now()) / 1000))
+    : room?.timeLeft || 0;
+
+  const isUrgent = computedTimeLeft <= 10;
+  const isHost = me?.id === room?.hostId;
+  const isDrawer = room?.currentDrawerId === me?.id;
+  const drawerName = room?.players.find(p => p.id === room?.currentDrawerId)?.name || 'Someone';
+
+  // Auto-refresh on socket connect (for Render cold starts)
+  useEffect(() => {
+    const onConnect = () => {
+      if (document.visibilityState === 'visible') {
+        window.location.reload();
+      }
+    };
+
+    socket.on('connect', onConnect);
+    return () => {
+      socket.off('connect', onConnect);
+    };
+  }, []);
+
   useEffect(() => {
     if (!me) { navigate('/'); return; }
 
-    const onRoomUpdate = (updatedRoom: RoomState) => setRoom(updatedRoom);
+    const onRoomUpdate = (updatedRoom: RoomState) => {
+      setRoom(updatedRoom);
+      // Show success message when room loads
+      useGameStore.getState().addMessage({
+        playerId: 'system',
+        playerName: 'System',
+        message: '✅ You can start the game!',
+        isSystem: true,
+      });
+    };
     const onError = (msg: string) => { alert(msg); navigate('/'); };
 
     socket.on('room_state_update', onRoomUpdate);
@@ -53,19 +86,16 @@ export default function Room() {
       <>
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap');
-          .loading-screen { min-height:100vh; min-height:100dvh; background:#0a0a0f; display:flex; align-items:center; justify-content:center; }
-          .spinner { width:44px; height:44px; border-radius:50%; border:3px solid #ffffff10; border-top-color:#FF6B6B; animation:spin 0.8s linear infinite; }
+          .room-loading { min-height:100vh; min-height:100dvh; background:#0a0a0f; display:flex; align-items:center; justify-content:center; }
+          .room-spinner { width:44px; height:44px; border-radius:50%; border:3px solid #ffffff10; border-top-color:#FF6B6B; animation:spin 0.8s linear infinite; }
           @keyframes spin { to { transform:rotate(360deg); } }
         `}</style>
-        <div className="loading-screen"><div className="spinner" /></div>
+        <div className="room-loading">
+          <div className="room-spinner" />
+        </div>
       </>
     );
   }
-
-  const isHost   = me?.id === room.hostId;
-  const isDrawer = room.currentDrawerId === me?.id;
-  const drawerName = room.players.find(p => p.id === room.currentDrawerId)?.name || 'Someone';
-  const isUrgent = room.timeLeft <= 10;
 
   /* ── LOBBY ──────────────────────────────────────────────────────── */
   if (!room.isGameStarted) {
@@ -451,11 +481,6 @@ export default function Room() {
         .round-label { font-size:0.62rem; font-weight:500; letter-spacing:0.1em; text-transform:uppercase; color:#ffffff35; }
         .timer-row { display:flex; align-items:center; gap:6px; font-family:'Syne',sans-serif; font-size:1.3rem; font-weight:800; transition:color 0.3s; }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
-
-        .topbar-center {
-          flex: 1; display: flex; justify-content: center; align-items: center;
-          min-width: 0; overflow: hidden;
-        }
         .word-choices {
           display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
           background: #13131a; border: 1px solid #ffffff15; border-radius: 14px;

@@ -8,6 +8,7 @@ const POINTS_FOR_DRAWER_PER_GUESSER = 5;
 export class Game {
   io: Server;
   room: Room;
+  syncInterval: NodeJS.Timeout | null = null;
 
   constructor(io: Server, room: Room) {
     this.io = io;
@@ -68,6 +69,7 @@ export class Game {
 
     this.room.currentWord = word;
     this.room.timeLeft = this.room.settings.drawTime;
+    this.room.turnEndTime = Date.now() + (this.room.timeLeft * 1000);
 
     const hint = word.replace(/[a-zA-Z]/g, '_');
     this.io.to(this.room.id).emit('word_hint', hint);
@@ -77,17 +79,31 @@ export class Game {
   }
 
   startTimer() {
-    if (this.room.timerInterval) clearInterval(this.room.timerInterval);
+    // Clear any existing timers
+    if (this.room.timerInterval) clearInterval(this.room.timerInterval as any);
+    if (this.syncInterval) clearInterval(this.syncInterval);
 
-    this.room.timerInterval = setInterval(() => {
-      this.room.timeLeft--;
-      this.io.to(this.room.id).emit('timer_update', this.room.timeLeft);
+    // Initial sync emit
+    this.io.to(this.room.id).emit('timer_sync', { endTime: this.room.turnEndTime });
 
-      if (this.room.timeLeft <= 0) {
+    // Periodic sync every 5s to correct client drift
+    this.syncInterval = setInterval(() => {
+      this.io.to(this.room.id).emit('timer_sync', { endTime: this.room.turnEndTime });
+      // Update approximate timeLeft for room state consistency
+      this.room.timeLeft = Math.max(0, Math.floor((this.room.turnEndTime - Date.now()) / 1000));
+      this.io.to(this.room.id).emit('room_state_update', this.room.getSafeguardedRoomState());
+    }, 5000);
+
+    // Server-side end check
+    const checkEnd = () => {
+      if (Date.now() >= this.room.turnEndTime) {
         this.awardEqualSplit();
         this.endTurn();
       }
-    }, 1000);
+    };
+
+    // Check every second for end
+    this.room.timerInterval = setInterval(checkEnd, 1000);
   }
 
   private awardEqualSplit() {
@@ -163,7 +179,8 @@ export class Game {
   }
 
   endTurn() {
-    if (this.room.timerInterval) clearInterval(this.room.timerInterval);
+    if (this.room.timerInterval) clearInterval(this.room.timerInterval as any);
+    if (this.syncInterval) clearInterval(this.syncInterval);
 
     this.io.to(this.room.id).emit('turn_end', { word: this.room.currentWord });
     this.io.to(this.room.id).emit('canvas_clear');
@@ -185,7 +202,9 @@ export class Game {
     this.room.currentRound = 0;
     this.room.currentDrawerId = null;
     this.room.currentWord = '';
-    if (this.room.timerInterval) clearInterval(this.room.timerInterval);
+    this.room.turnEndTime = 0;
+    if (this.room.timerInterval) clearInterval(this.room.timerInterval as any);
+    if (this.syncInterval) clearInterval(this.syncInterval);
 
     const leaderboard = this.room
       .getPlayers()
@@ -196,6 +215,7 @@ export class Game {
   }
 
   destroy() {
-    if (this.room.timerInterval) clearInterval(this.room.timerInterval);
+    if (this.room.timerInterval) clearInterval(this.room.timerInterval as any);
+    if (this.syncInterval) clearInterval(this.syncInterval);
   }
 }

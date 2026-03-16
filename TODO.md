@@ -1,12 +1,15 @@
-# Winner Page Implementation
+# Timer Fix Progress
 
-## Steps:
-- [x] 1. Update gameStore.ts: Add leaderboard to RoomState/GameStore + setLeaderboard action
-- [x] 2. Update useGameSocket.ts: On 'game_over', setLeaderboard(data.leaderboard)
-- [x] 3. Update PlayerList.tsx: Add 'winnerMode' prop, compute dense ranks for ties (same score = same rank), winner styles (trophy top3, remove badges)
-- [x] 4. Update Room.tsx: Render winner overlay/modal if leaderboard exists. Use PlayerList w/ winnerMode=true, add restart btn, confetti effect
-- [ ] 5. Test: Run game to end, verify ranked leaderboard w/ ties, overlay styles
-- [ ] 6. Optional: Backend restart_game handler if needed
+## Completed (2/8)
+- [x] 1. Update Skribbl/backend/src/models/Room.ts: Add `turnEndTime: number = 0;` field and include in `getSafeguardedRoomState()`
+- [x] 2. Update Skribbl/backend/src/models/Game.ts: Replace tick interval with timestamp logic
 
-Progress: Complete! Winner page implemented with ranked leaderboard (ties handled), overlay, play again button, animations.
+## Pending
+- [x] 3. Update Skribbl/frontend/src/store/gameStore.ts: Extend RoomState with `turnEndTime?: number`
+- [ ] 4. Update Skribbl/frontend/src/hooks/useGameSocket.ts: Handle 'timer_sync' event
+- [x] 5. Update Skribbl/frontend/src/pages/Room.tsx: Compute and display client-side timeLeft
+- [ ] 6. Test locally: Backend dev server + Frontend dev server
+- [ ] 7. Backend: Add periodic sync emit every 5s during turn
+- [ ] 8. Verify deployment/production behavior
 
+**Next step after completion:** attempt_completion with demo command (e.g., open deployed site or local Room page).
