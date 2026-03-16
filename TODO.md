@@ -1,15 +1,11 @@
-# Timer Fix Progress
+# Fix 404 on Refresh & Prevent Accidental Back Navigation
 
-## Completed (2/8)
-- [x] 1. Update Skribbl/backend/src/models/Room.ts: Add `turnEndTime: number = 0;` field and include in `getSafeguardedRoomState()`
-- [x] 2. Update Skribbl/backend/src/models/Game.ts: Replace tick interval with timestamp logic
+## Steps to Complete:
+- [x] Step 1: Update vite.config.ts with historyApiFallback
+- [x] Step 2: Add back button prevention logic to Room.tsx
+- [x] Step 3: Test fixes and complete task
 
-## Pending
-- [x] 3. Update Skribbl/frontend/src/store/gameStore.ts: Extend RoomState with `turnEndTime?: number`
-- [ ] 4. Update Skribbl/frontend/src/hooks/useGameSocket.ts: Handle 'timer_sync' event
-- [x] 5. Update Skribbl/frontend/src/pages/Room.tsx: Compute and display client-side timeLeft
-- [ ] 6. Test locally: Backend dev server + Frontend dev server
-- [ ] 7. Backend: Add periodic sync emit every 5s during turn
-- [ ] 8. Verify deployment/production behavior
+**Current Progress**: 3/3 steps completed
 
-**Next step after completion:** attempt_completion with demo command (e.g., open deployed site or local Room page).
+**Instructions**: After each step completes successfully, I will update this file to mark progress.
+

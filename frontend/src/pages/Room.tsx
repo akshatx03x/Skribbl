@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore, socket, type RoomState } from '../store/gameStore';
 import Canvas from '../components/Canvas';
@@ -13,12 +13,37 @@ export default function Room() {
   const navigate = useNavigate();
   const { me, room, setRoom, resetGame, wordHint, myWord, wordChoices } = useGameStore();
 
+  // Prevent accidental back navigation (requires double-back)
+  useEffect(() => {
+    // Duplicate current history entry
+    window.history.pushState(null, '', window.location.href);
+    
+    const handlePopState = (e: PopStateEvent) => {
+      // Block first back, duplicate again
+      window.history.pushState(null, '', window.location.href);
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   useGameSocket();
 
-  // Client-side smooth countdown from server endTime
-  const computedTimeLeft = room && room.turnEndTime 
-    ? Math.max(0, Math.floor((room.turnEndTime - Date.now()) / 1000))
-    : room?.timeLeft || 0;
+  // ── FIX: useState + setInterval for smooth client-side countdown ──
+  const [computedTimeLeft, setComputedTimeLeft] = useState(0);
+
+  useEffect(() => {
+    const tick = () => {
+      if (room?.turnEndTime) {
+        setComputedTimeLeft(Math.max(0, Math.floor((room.turnEndTime - Date.now()) / 1000)));
+      } else {
+        setComputedTimeLeft(room?.timeLeft || 0);
+      }
+    };
+    tick(); // run immediately on mount / room change
+    const id = setInterval(tick, 500); // 500 ms for accuracy
+    return () => clearInterval(id);
+  }, [room?.turnEndTime, room?.timeLeft]);
 
   const isUrgent = computedTimeLeft <= 10;
   const isHost = me?.id === room?.hostId;
@@ -591,7 +616,8 @@ export default function Room() {
               <span className="round-label">Round {room.currentRound} / {room.settings.rounds}</span>
               <div className="timer-row">
                 <Clock size={18} style={{ color: isUrgent ? '#ef4444' : '#FF6B6B', ...(isUrgent ? { animation: 'pulse 0.6s ease-in-out infinite' } : {}) }} />
-                <span style={{ color: isUrgent ? '#ef4444' : '#FF6B6B' }}>{room.timeLeft}</span>
+                {/* ── FIX: use computedTimeLeft (state) instead of room.timeLeft ── */}
+                <span style={{ color: isUrgent ? '#ef4444' : '#FF6B6B' }}>{computedTimeLeft}</span>
               </div>
             </div>
           </div>
