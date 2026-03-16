@@ -1,11 +1,32 @@
-# Fix 404 on Refresh & Prevent Accidental Back Navigation
+# Skribbl Project TODO
 
-## Steps to Complete:
-- [x] Step 1: Update vite.config.ts with historyApiFallback
-- [x] Step 2: Add back button prevention logic to Room.tsx
-- [x] Step 3: Test fixes and complete task
+## Current Task: Fix CORS Error
+✅ **1. Edit backend/src/index.ts** - Set `allowedOrigins: true` ✓
+✅ **2. Backend CORS fixed locally**
 
-**Current Progress**: 3/3 steps completed
+## Next Steps:
+3. **Build & Deploy Backend**:
+   ```
+   cd Skribbl/backend
+   npm run build
+   # Deploy to Render (git push or dashboard)
+   ```
 
-**Instructions**: After each step completes successfully, I will update this file to mark progress.
+4. **Test Connection**:
+   - Load https://skribbl-2vbn.vercel.app → Create/Join Room
+   - Check browser console: No CORS errors, socket connects
+   - Verify real-time updates (chat, players, drawing)
+   - Load https://skribbl-2vbn.vercel.app → Create/Join Room
+   - Check browser console: No CORS errors, socket connects
+   - Verify real-time updates (chat, players, drawing)
 
+4. **Optional Improvements**:
+   - Add env var support for specific origins in production
+   - Rate limiting on socket events
+   - Persistent rooms (Redis)
+
+## Progress
+- [x] Understand CORS issue
+- [x] Edit backend CORS config
+- [ ] Redeploy backend on Render
+- [ ] Test production connection
