@@ -18,7 +18,7 @@ export default function Room() {
     // Duplicate current history entry
     window.history.pushState(null, '', window.location.href);
     
-    const handlePopState = (e: PopStateEvent) => {
+    const handlePopState = () => {
       // Block first back, duplicate again
       window.history.pushState(null, '', window.location.href);
     };
