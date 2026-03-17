@@ -674,7 +674,7 @@ export default function Home() {
           )}
 
           {status === 'error' && (
-            <div className="error-msg">❌ Server disconnected. Check VITE_BACKEND_URL.</div>
+            <div className="error-msg">❌ Wait for 1-2 mins to let the Server start up.</div>
           )}
           {error && <div className="error-msg">{error}</div>}
 
